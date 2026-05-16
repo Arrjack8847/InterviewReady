@@ -8,10 +8,18 @@ import type {
   VisualMetrics,
 } from "@/lib/types";
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5055").replace(
-  /\/+$/,
-  "",
-);
+const LOCAL_API_BASE_URL = "http://localhost:5055";
+const PRODUCTION_API_BASE_URL = "https://interview2-k5w5.onrender.com";
+
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
+const configuredApiBaseUrlIsLocal =
+  configuredApiBaseUrl?.startsWith("http://localhost") ||
+  configuredApiBaseUrl?.startsWith("http://127.0.0.1");
+
+export const API_BASE_URL =
+  import.meta.env.PROD && configuredApiBaseUrlIsLocal
+    ? PRODUCTION_API_BASE_URL
+    : configuredApiBaseUrl || (import.meta.env.PROD ? PRODUCTION_API_BASE_URL : LOCAL_API_BASE_URL);
 
 async function getSupabaseAccessToken() {
   requireSupabaseConfig();

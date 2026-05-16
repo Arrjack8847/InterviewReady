@@ -132,7 +132,7 @@ Vercel environment variables:
 
 - VITE_SUPABASE_URL=
 - VITE_SUPABASE_ANON_KEY=
-- VITE_API_BASE_URL=https://MY-RENDER-BACKEND.onrender.com
+- VITE_API_BASE_URL=https://interview2-k5w5.onrender.com
 
 Notes:
 
