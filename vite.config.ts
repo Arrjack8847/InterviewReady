@@ -33,15 +33,14 @@ export default defineConfig(({ command }) => {
     }),
   );
 
-  if (command === "build" && deployTarget === "node") {
-    plugins.push(
-      nitro({
-        preset: "node-server",
-        // Keep peak memory predictable on Windows and small Render build instances.
-        minify: false,
-      }),
-    );
-  }
+ if (command === "build" && deployTarget === "node") {
+  plugins.push(
+    nitro({
+      preset: process.env.VERCEL === "1" ? "vercel" : "node-server",
+      minify: false,
+    }),
+  );
+}
 
   plugins.push(viteReact());
 
