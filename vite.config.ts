@@ -6,18 +6,30 @@ import { nitro } from "nitro/vite";
 import { defineConfig, type PluginOption } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
-// Render uses the Node target. Cloudflare remains available only as an explicit opt-in.
 const deployTarget = process.env.DEPLOY_TARGET ?? "node";
 
 if (deployTarget !== "node" && deployTarget !== "cloudflare") {
-  throw new Error(`Unsupported DEPLOY_TARGET "${deployTarget}". Use "node" or "cloudflare".`);
+  throw new Error(
+    `Unsupported DEPLOY_TARGET "${deployTarget}". Use "node" or "cloudflare".`,
+  );
 }
 
 export default defineConfig(({ command }) => {
-  const plugins: PluginOption[] = [tailwindcss(), tsConfigPaths({ projects: ["./tsconfig.json"] })];
+  const plugins: PluginOption[] = [
+    tailwindcss(),
+    tsConfigPaths({
+      projects: ["./tsconfig.json"],
+    }),
+  ];
 
   if (command === "build" && deployTarget === "cloudflare") {
-    plugins.push(cloudflare({ viteEnvironment: { name: "ssr" } }));
+    plugins.push(
+      cloudflare({
+        viteEnvironment: {
+          name: "ssr",
+        },
+      }),
+    );
   }
 
   plugins.push(
@@ -29,24 +41,33 @@ export default defineConfig(({ command }) => {
           specifiers: ["server-only"],
         },
       },
-      server: { entry: "server" },
+      server: {
+        entry: "server",
+      },
     }),
   );
 
- if (command === "build" && deployTarget === "node") {
-  plugins.push(
-    nitro({
-      preset: process.env.VERCEL === "1" ? "vercel" : "node-server",
-      minify: false,
-    }),
-  );
-}
+  if (command === "build" && deployTarget === "node") {
+    const isVercelBuild = process.env.VERCEL === "1";
+
+    plugins.push(
+      nitro({
+        preset: isVercelBuild ? "vercel" : "node-server",
+        minify: false,
+      }),
+    );
+  }
 
   plugins.push(viteReact());
 
   return {
     plugins,
-    server: { host: "::", port: 8080 },
+
+    server: {
+      host: "::",
+      port: 8080,
+    },
+
     resolve: {
       dedupe: [
         "react",
