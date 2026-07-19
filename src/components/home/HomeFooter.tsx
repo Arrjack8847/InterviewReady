@@ -8,8 +8,12 @@ export function HomeFooter() {
       <div className="home-shell">
         <div className="home-footer__top">
           <div className="home-footer__brand">
-            <Link to="/" className="home-brand home-brand--footer">
-              InterviewReady
+            <Link to="/" className="home-brand home-brand--footer" aria-label="InterviewReady home">
+              <img
+                className="home-brand__logo"
+                src="/images/interviewready-logo.svg"
+                alt="InterviewReady"
+              />
             </Link>
             <p>
               Personalised interview preparation built from your résumé, target role and real

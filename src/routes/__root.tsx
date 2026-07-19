@@ -94,6 +94,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary" },
     ],
     links: [
+      { rel: "icon", type: "image/svg+xml", href: "/images/interviewready-logo.svg" },
       { rel: "stylesheet", href: appCss },
       { rel: "stylesheet", href: internalAppCss },
     ],

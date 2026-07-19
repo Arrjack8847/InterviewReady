@@ -39,7 +39,13 @@ export function Navbar() {
     return (
       <header className="app-header app-header--focus">
         <div className="app-header__inner">
-          <span className="app-header__wordmark">InterviewReady</span>
+          <span className="app-header__wordmark">
+            <img
+              className="app-header__logo"
+              src="/images/interviewready-logo.svg"
+              alt="InterviewReady"
+            />
+          </span>
           <span className="app-header__focus-label">Interview in progress</span>
         </div>
       </header>
@@ -50,7 +56,11 @@ export function Navbar() {
     <header className="app-header">
       <div className="app-header__inner">
         <Link to="/" className="app-header__wordmark" aria-label="InterviewReady home">
-          InterviewReady
+          <img
+            className="app-header__logo"
+            src="/images/interviewready-logo.svg"
+            alt="InterviewReady"
+          />
         </Link>
 
         {user && (

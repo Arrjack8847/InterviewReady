@@ -54,10 +54,14 @@
 }
 .app-header__wordmark {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
   color: var(--app-foreground);
-  font-size: 1rem;
-  font-weight: 720;
-  letter-spacing: -0.035em;
+}
+.app-header__logo {
+  display: block;
+  width: clamp(138px, 13vw, 168px);
+  height: auto;
 }
 .app-header__nav {
   height: 100%;

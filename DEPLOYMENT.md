@@ -136,7 +136,7 @@ Frontend Vercel settings:
 
 Create a new Vercel project from your GitHub repo. Use the project root as the Vercel root directory.
 
-This project uses TanStack Start through the Lovable Vite config. During Vercel builds, `vite.config.ts` enables Nitro and writes Vercel Build Output API files to `.vercel/output`. Do not force the output directory to `dist` for the Vercel production project.
+This project uses the standard TanStack Start Vite plugin. During Vercel builds, `vite.config.ts` enables Nitro and writes Vercel Build Output API files to `.vercel/output`. Do not force the output directory to `dist` for the Vercel production project.
 
 ## 7. Add Vercel Environment Variables
 

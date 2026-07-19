@@ -203,11 +203,11 @@ export function HomeNavbar() {
           aria-label="InterviewReady, back to top"
           onClick={closeMenu}
         >
-          <span className="home-brand__mark" aria-hidden="true">
-            IR
-          </span>
-
-          <span>InterviewReady</span>
+          <img
+            className="home-brand__logo"
+            src="/images/interviewready-logo.svg"
+            alt="InterviewReady"
+          />
         </a>
 
         <nav className="home-nav__links" aria-label="Homepage sections">

@@ -170,22 +170,13 @@ html:has(.home-page) {
 .home-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-size: 1rem;
-  font-weight: 720;
-  letter-spacing: -0.025em;
   white-space: nowrap;
 }
-.home-brand__mark {
-  width: 31px;
-  height: 31px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: #0a0a0a;
-  border-radius: 9px;
-  font-size: 0.65rem;
-  letter-spacing: -0.02em;
+.home-brand__logo {
+  display: block;
+  width: clamp(150px, 15vw, 188px);
+  height: auto;
+  transition: filter 240ms ease;
 }
 .home-nav__links {
   display: flex;
@@ -3917,9 +3908,11 @@ html:has(.home-page) {
 
 .home-brand--footer {
   width: fit-content;
-  color: #fff;
-  font-size: 1.05rem;
-  font-weight: 700;
+}
+
+.home-brand--footer .home-brand__logo {
+  width: clamp(170px, 18vw, 210px);
+  filter: invert(1);
 }
 
 .home-footer__brand p {
@@ -5658,9 +5651,8 @@ html:has(.home-page) {
   -webkit-backdrop-filter: none;
 }
 
-.home-nav--hero .home-brand__mark {
-  color: #fff;
-  background: #0a0a0a;
+.home-nav--hero .home-brand__logo {
+  filter: none;
 }
 
 .home-nav--hero .home-nav__cta {
@@ -5688,9 +5680,8 @@ html:has(.home-page) {
   color: #111;
 }
 
-.home-nav--light .home-brand__mark {
-  color: #fff;
-  background: #0a0a0a;
+.home-nav--light .home-brand__logo {
+  filter: none;
 }
 
 .home-nav--light .home-nav__cta {
@@ -5708,9 +5699,8 @@ html:has(.home-page) {
   color: #fff;
 }
 
-.home-nav--dark .home-brand__mark {
-  color: #0a0a0a;
-  background: #fff;
+.home-nav--dark .home-brand__logo {
+  filter: invert(1);
 }
 
 .home-nav--dark .home-nav__cta {
@@ -5748,9 +5738,8 @@ html:has(.home-page) {
   -webkit-backdrop-filter: none;
 }
 
-.home-nav--menu-open .home-brand__mark {
-  color: #fff;
-  background: #111;
+.home-nav--menu-open .home-brand__logo {
+  filter: none;
 }
 
 .home-nav--menu-open .home-nav__cta {

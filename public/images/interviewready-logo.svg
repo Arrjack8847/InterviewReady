@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400" viewBox="0 0 1600 400" role="img" aria-labelledby="title desc">
+  <title id="title">InterviewReady Logo</title>
+  <desc id="desc">Monochrome InterviewReady wordmark with an abstract forward-progress icon.</desc>
+
+  <!-- Transparent background -->
+
+  <!-- Icon -->
+  <g fill="#111111" transform="translate(82 88)">
+    <!-- Forward-progress bars -->
+    <path d="M0 186 L86 20 Q92 8 106 8 H134 Q147 8 140 22 L54 188 Q48 200 34 200 H8 Q-5 200 0 186 Z"/>
+    <path d="M82 186 L145 68 Q151 56 165 56 H191 Q204 56 197 70 L134 188 Q128 200 114 200 H90 Q77 200 82 186 Z"/>
+    <path d="M163 186 L205 108 Q211 96 225 96 H247 Q260 96 253 110 L211 188 Q205 200 191 200 H171 Q158 200 163 186 Z"/>
+    <!-- Readiness dot -->
+    <circle cx="238" cy="22" r="22"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="410" y="257"
+        fill="#111111"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="150"
+        font-weight="500"
+        letter-spacing="-5">InterviewReady</text>
+</svg>
