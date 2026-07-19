@@ -125,7 +125,26 @@ Expected response includes:
 }
 ```
 
-## 6. Deploy Frontend on Vercel
+## 6. Deploy Frontend on Render
+
+Create a Node.js Web Service from the repository root with these settings:
+
+- Build command: `npm install && DEPLOY_TARGET=node npm run build`
+- Start command: `npm start`
+- Health check path: `/`
+
+Set these environment variables on the frontend service:
+
+- `DEPLOY_TARGET=node`
+- `NODE_ENV=production`
+- `HOST=0.0.0.0`
+- `VITE_SUPABASE_URL=`
+- `VITE_SUPABASE_ANON_KEY=`
+- `VITE_API_BASE_URL=https://MY-RENDER-BACKEND.onrender.com`
+
+Render supplies `PORT`; the generated Nitro Node server reads both `PORT` and `HOST`. The build output entry is `.output/server/index.mjs`.
+
+## 6A. Optional: Deploy Frontend on Vercel
 
 Frontend Vercel settings:
 

@@ -9,6 +9,7 @@
     "dev:backend": "npm --prefix server run dev",
     "build": "npm run typecheck && vite build",
     "build:dev": "vite build --mode development",
+    "start": "node .output/server/index.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

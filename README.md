@@ -101,6 +101,7 @@ http://localhost:5173
 ```bash
 npm run dev       # Start the Vite development server
 npm run build     # Create a production build
+npm start         # Run the built Nitro Node server
 npm run build:dev # Create a development-mode build
 npm run preview   # Preview the production build locally
 npm run lint      # Run ESLint
