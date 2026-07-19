@@ -9,7 +9,7 @@ export function FinalCta() {
           Your dream internship starts with one practice session.
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-primary-foreground/85">
-          Join thousands of students using InterviewReady AI to walk into interviews calm, prepared,
+          Join candidates using InterviewReady AI to walk into interviews calm, prepared,
           and confident.
         </p>
         <div className="mt-8">

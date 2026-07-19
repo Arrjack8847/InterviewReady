@@ -11,24 +11,30 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import internalAppCss from "../styles/internal-app.css?url";
+import { ErrorState } from "@/components/app/ErrorState";
 import { Navbar } from "@/components/Navbar";
 import { AuthProvider } from "@/context/AuthContext";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-primary-gradient">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <div className="mt-6">
+    <div className="app-container app-container--narrow">
+      <div className="app-not-found">
+        <p className="app-eyebrow">Error 404</p>
+        <h1>That page isn&apos;t part of your preparation path.</h1>
+        <p>Check the address or return to a familiar place.</p>
+        <div>
           <Link
             to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex h-11 items-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground"
           >
             Go home
+          </Link>
+          <Link
+            to="/dashboard"
+            className="ml-3 inline-flex h-11 items-center rounded-full border border-border px-6 text-sm font-semibold"
+          >
+            Dashboard
           </Link>
         </div>
       </div>
@@ -41,33 +47,30 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+    <ErrorState
+      fullPage
+      title="This page didn't load"
+      description="Something interrupted the request. Your saved preparation data has not been changed."
+      action={
+        <div className="flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex h-11 items-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground"
           >
             Try again
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex h-11 items-center rounded-full border border-input bg-background px-6 text-sm font-semibold"
           >
             Go home
           </a>
         </div>
-      </div>
-    </div>
+      }
+    />
   );
 }
 
@@ -80,7 +83,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "AI-powered interview practice for students and fresh graduates. Role-based questions, instant feedback, progress tracking.",
+          "AI-powered interview practice for candidates across professions and experience levels. Role-based questions, instant feedback, and progress tracking.",
       },
       { property: "og:title", content: "InterviewReady AI" },
       {
@@ -90,7 +93,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "stylesheet", href: internalAppCss },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -115,10 +121,14 @@ function RootShell({ children }: { children: ReactNode }) {
 function Layout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const hideNav = pathname === "/login" || pathname === "/register";
+  const hideNav = pathname === "/" || pathname === "/login" || pathname === "/register";
+  const isHomepage = pathname === "/";
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div
+      className={isHomepage ? "flex min-h-screen flex-col" : "app-root flex min-h-screen flex-col"}
+      data-app-route={isHomepage ? undefined : pathname.split("/")[1] || "not-found"}
+    >
       {!hideNav && <Navbar />}
       <main className="flex-1">
         <Outlet />

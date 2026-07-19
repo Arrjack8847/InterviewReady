@@ -1,4 +1,9 @@
-import { FilesetResolver, HandLandmarker, type NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { HandLandmarker, type NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { getInterviewVisionResolver } from "@/features/interview/monitoring/face/createFaceLandmarker";
+import {
+  isGpuDelegateError,
+  loadModelWithTimeout,
+} from "@/features/interview/monitoring/modelLoading";
 
 export type HandAnalysisResult = {
   hands: NormalizedLandmark[][];
@@ -15,8 +20,6 @@ export type HandAnalyzerController = {
 
 const HAND_LANDMARKER_MODEL =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task";
-
-const WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
 
 const HAND_CONNECTIONS: Array<[number, number]> = [
   [0, 1],
@@ -43,15 +46,27 @@ const HAND_CONNECTIONS: Array<[number, number]> = [
 ];
 
 export async function createHandAnalyzer(): Promise<HandAnalyzerController> {
-  const vision = await FilesetResolver.forVisionTasks(WASM_PATH);
-
-  const handLandmarker = await HandLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath: HAND_LANDMARKER_MODEL,
-      delegate: "GPU",
-    },
-    runningMode: "VIDEO",
-    numHands: 2,
+  const handLandmarker = await loadModelWithTimeout("Hand coaching", async () => {
+    const vision = await getInterviewVisionResolver();
+    const options = {
+      runningMode: "VIDEO" as const,
+      numHands: 2,
+      minHandDetectionConfidence: 0.55,
+      minHandPresenceConfidence: 0.55,
+      minTrackingConfidence: 0.55,
+    };
+    try {
+      return await HandLandmarker.createFromOptions(vision, {
+        ...options,
+        baseOptions: { modelAssetPath: HAND_LANDMARKER_MODEL, delegate: "GPU" },
+      });
+    } catch (error) {
+      if (!isGpuDelegateError(error)) throw error;
+      return HandLandmarker.createFromOptions(vision, {
+        ...options,
+        baseOptions: { modelAssetPath: HAND_LANDMARKER_MODEL, delegate: "CPU" },
+      });
+    }
   });
 
   return {

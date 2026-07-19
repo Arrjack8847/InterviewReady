@@ -1,6 +1,7 @@
 import { extractResumeAnalysis } from "@/lib/api";
 import { requireSupabaseConfig, supabase } from "@/lib/supabase";
 import { createResumeRecord } from "@/lib/supabaseService";
+import { normalizeExperienceLevel } from "@/lib/types";
 
 export interface UploadedResumeResult {
   resumeId: string;
@@ -91,22 +92,28 @@ export async function uploadResumeForUser({
 
   const fileUrl = signedUrlData.signedUrl;
 
-  const resumeId = await createResumeRecord({
-    userId: finalUserId,
-    fileName: file.name,
-    fileUrl,
-    filePath,
-    extractedText: "",
-    parsedSkills: [],
-    parsedProjects: [],
-    parsedEducation: "",
-    resumeSummary: "",
-  });
+  let resumeId: string;
+
+  try {
+    resumeId = await createResumeRecord({
+      userId: finalUserId,
+      fileName: file.name,
+      // Signed URLs expire. Persist the stable storage path and create URLs only for display.
+      fileUrl: "",
+      filePath,
+      extractedText: "",
+      parsedSkills: [],
+      parsedProjects: [],
+      parsedEducation: "",
+      resumeSummary: "",
+    });
+  } catch (error) {
+    await supabase.storage.from(RESUME_BUCKET).remove([filePath]);
+    throw error;
+  }
 
   const analysis = await extractResumeAnalysis({
     resumeId,
-    filePath,
-    fileName: file.name,
   });
 
   return {
@@ -121,7 +128,10 @@ export async function uploadResumeForUser({
     parsedExperience: analysis.parsedExperience || [],
 
     resumeSummary: analysis.resumeSummary || "Resume analyzed successfully.",
-    careerLevel: analysis.careerLevel || "Student / entry-level candidate",
+    careerLevel: normalizeExperienceLevel(
+      analysis.careerLevel,
+      "Entry Level",
+    ),
     strongAreas: analysis.strongAreas || [],
     weakAreas: analysis.weakAreas || [],
     recommendedRoles: analysis.recommendedRoles || [],

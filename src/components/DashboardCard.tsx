@@ -9,24 +9,12 @@ interface Props {
 }
 
 export function DashboardCard({ label, value, icon: Icon, hint, tone = "default" }: Props) {
-  const toneClass =
-    tone === "success"
-      ? "bg-success/15 text-success"
-      : tone === "warning"
-        ? "bg-warning/20 text-warning-foreground"
-        : "bg-accent text-accent-foreground";
+  void Icon;
   return (
-    <div className="rounded-2xl border border-border bg-card p-6">
-      <div className="flex items-start justify-between">
-        <div className="text-sm font-medium text-muted-foreground">{label}</div>
-        {Icon && (
-          <span className={`grid h-9 w-9 place-items-center rounded-lg ${toneClass}`}>
-            <Icon className="h-4 w-4" />
-          </span>
-        )}
-      </div>
-      <div className="mt-3 font-display text-3xl font-bold tracking-tight">{value}</div>
-      {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
+    <div className="app-metric" data-tone={tone}>
+      <div className="app-metric__label">{label}</div>
+      <div className="app-metric__value">{value}</div>
+      {hint && <div className="app-metric__hint">{hint}</div>}
     </div>
   );
 }

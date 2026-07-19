@@ -1,29 +1,26 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Award, BarChart3, Building2, Camera, Mic, Plus, Target, TrendingDown } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
 import { DashboardCard } from "@/components/DashboardCard";
 import { RequireAuth } from "@/components/RequireAuth";
 import { SessionHistoryCard } from "@/components/SessionHistoryCard";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { getUserInterviewSessions } from "@/lib/supabaseService";
-import { buildDashboardStats, mapSupabaseSessionToSummary } from "@/lib/sessionUtils";
+import {
+  buildDashboardStats,
+  getCompletedSessionsOnly,
+  mapSupabaseSessionToSummary,
+} from "@/lib/sessionUtils";
 import type { DashboardStats, SessionSummary } from "@/lib/types";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard — InterviewReady AI" },
-      {
-        name: "description",
-        content: "Track your interview practice progress, scores, and recent sessions.",
-      },
-      { property: "og:title", content: "Dashboard — InterviewReady AI" },
-      {
-        property: "og:description",
-        content: "Your interview practice progress at a glance.",
-      },
+      { title: "Dashboard — InterviewReady" },
+      { name: "description", content: "Your personal interview preparation workspace." },
     ],
   }),
   component: () => (
@@ -38,7 +35,7 @@ const EMPTY_STATS: DashboardStats = {
   averageScore: 0,
   latestScore: 0,
   bestSkill: "N/A",
-  weakestSkill: "Start practicing",
+  weakestSkill: "Start practising",
   resumeMatchScore: 0,
   companyReadinessScore: 0,
   speechConfidenceScore: 0,
@@ -50,48 +47,49 @@ const EMPTY_STATS: DashboardStats = {
 function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
-
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [activeSessions, setActiveSessions] = useState<SessionSummary[]>([]);
   const [completedSessions, setCompletedSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const displayName = user?.displayName || user?.email?.split("@")[0] || "Student";
+  const [profile, setProfile] = useState<{ fileName?: string; uploadedAt?: string } | null>(null);
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "Candidate";
 
   useEffect(() => {
     if (!user) return;
-
     const loadDashboard = async () => {
       try {
         setLoading(true);
         setError("");
-
         const sessions = await getUserInterviewSessions(user.uid);
-        const visibleSessions = sessions.filter((session) => session.status !== "cancelled");
-        const dashboardStats = buildDashboardStats(visibleSessions);
-
-        setStats(dashboardStats);
+        const visible = sessions.filter((session) => session.status !== "cancelled");
+        setStats(buildDashboardStats(visible));
         setActiveSessions(
-          visibleSessions
-            .filter((session) => session.status === "in-progress")
-            .map((session) => mapSupabaseSessionToSummary(session)),
+          visible
+            .filter((session) => session.status === "in_progress")
+            .map(mapSupabaseSessionToSummary),
         );
-        setCompletedSessions(
-          visibleSessions
-            .filter((session) => session.status === "completed")
-            .map((session) => mapSupabaseSessionToSummary(session)),
-        );
-      } catch (error) {
-        console.error("Failed to load dashboard sessions:", error);
-        setError("Could not load your dashboard data from Supabase.");
+        setCompletedSessions(getCompletedSessionsOnly(visible).map(mapSupabaseSessionToSummary));
+      } catch (loadError) {
+        console.error("Failed to load dashboard sessions:", loadError);
+        setError("We could not load your preparation data. Please refresh and try again.");
       } finally {
         setLoading(false);
       }
     };
-
-    loadDashboard();
+    void loadDashboard();
   }, [user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = localStorage.getItem("ir.resume");
+    if (!saved) return;
+    try {
+      setProfile(JSON.parse(saved) as { fileName?: string; uploadedAt?: string });
+    } catch {
+      setProfile(null);
+    }
+  }, []);
 
   const handleContinueSession = (session: SessionSummary) => {
     localStorage.setItem("ir.sessionId", session.id);
@@ -100,173 +98,227 @@ function Dashboard() {
     navigate({ to: "/interview" });
   };
 
+  const nextTitle = activeSessions.length
+    ? "Continue your active interview"
+    : completedSessions.length
+      ? "Build on your latest feedback"
+      : "Start your first personalised interview";
+  const nextDescription = activeSessions.length
+    ? "Your unfinished session is ready when you are."
+    : completedSessions.length
+      ? `Focus next on ${stats.weakestSkill || "your priority improvement"}.`
+      : "Choose a target role, experience level, and practice mode to begin.";
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="font-display text-3xl font-bold sm:text-4xl">
-            Welcome back, <span className="text-primary-gradient">{displayName}</span>
-          </h1>
-
-          <p className="mt-1 text-muted-foreground">
-            Track your interview practice progress and improve your readiness.
-          </p>
-        </div>
-
-        <Button
-          asChild
-          size="lg"
-          className="w-full bg-primary-gradient text-primary-foreground shadow-elegant hover:opacity-90 sm:w-auto"
-        >
-          <Link to="/start">
-            <Plus className="mr-2 h-4 w-4" />
-            Start New Interview
-          </Link>
-        </Button>
-      </div>
-
+    <div className="app-container">
+      <PageHeader
+        eyebrow="Preparation workspace"
+        title="Today"
+        description={`Welcome back, ${displayName}. See where you are, what has improved and the most useful next step.`}
+        actions={
+          <Button asChild size="lg">
+            <Link to="/start">Start practice</Link>
+          </Button>
+        }
+      />
       {error && (
-        <div className="mt-6 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="auth-form__error" role="alert">
           {error}
         </div>
       )}
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <DashboardCard
-          label="Total Sessions"
-          value={loading ? "..." : stats.totalSessions}
-          icon={BarChart3}
-          hint="Saved in Supabase"
-        />
+      <section className="dashboard-lead">
+        <div className="app-panel dashboard-recommendation">
+          <p className="app-eyebrow">Recommended next action</p>
+          <h2>{nextTitle}</h2>
+          <p>{nextDescription}</p>
+          {activeSessions.length ? (
+            <Button
+              className="mt-6"
+              variant="secondary"
+              onClick={() => handleContinueSession(activeSessions[0])}
+            >
+              Continue interview
+            </Button>
+          ) : (
+            <Button asChild className="mt-6" variant="secondary">
+              <Link to="/start">Set up practice</Link>
+            </Button>
+          )}
+        </div>
+        <div className="app-panel app-panel--muted p-7">
+          <p className="app-eyebrow">Improvement focus</p>
+          <h2 className="text-xl">{loading ? "Reviewing your sessions…" : stats.weakestSkill}</h2>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            {completedSessions.length
+              ? "Use your next session to strengthen this area, then compare the evidence in your report."
+              : "Complete a session to receive a focused recommendation based on real performance."}
+          </p>
+        </div>
+      </section>
 
-        <DashboardCard
-          label="Average Score"
-          value={loading ? "..." : `${stats.averageScore}%`}
-          icon={Target}
-          tone="success"
-          hint="Completed sessions"
-        />
+      <section className="app-section" aria-labelledby="readiness-heading">
+        <div className="app-section-heading">
+          <div>
+            <h2 id="readiness-heading">Readiness overview</h2>
+            <p>Real outcomes from completed sessions.</p>
+          </div>
+        </div>
+        <div className="app-metrics">
+          <DashboardCard
+            label="Completed sessions"
+            value={loading ? "…" : stats.totalSessions}
+            hint="Saved preparation sessions"
+          />
+          <DashboardCard
+            label="Average score"
+            value={loading ? "…" : `${stats.averageScore}%`}
+            hint="Across completed sessions"
+          />
+          <DashboardCard
+            label="Latest score"
+            value={loading ? "…" : `${stats.latestScore}%`}
+            hint="Most recent result"
+          />
+          <DashboardCard
+            label="Résumé match"
+            value={loading ? "…" : `${stats.resumeMatchScore}%`}
+            hint="Average report alignment"
+          />
+        </div>
+      </section>
 
-        <DashboardCard
-          label="Latest Score"
-          value={loading ? "..." : `${stats.latestScore}%`}
-          icon={Award}
-          tone="success"
-          hint="Most recent completed session"
-        />
+      <section className="app-section">
+        <div className="app-section-heading">
+          <div>
+            <h2>Your preparation path</h2>
+            <p>Each stage informs what comes next.</p>
+          </div>
+        </div>
+        <ol className="dashboard-path">
+          <li>
+            <span>01</span>
+            <strong>Résumé</strong>
+          </li>
+          <li>
+            <span>02</span>
+            <strong>Target role</strong>
+          </li>
+          <li>
+            <span>03</span>
+            <strong>Practice</strong>
+          </li>
+          <li>
+            <span>04</span>
+            <strong>Feedback</strong>
+          </li>
+          <li>
+            <span>05</span>
+            <strong>Progress</strong>
+          </li>
+        </ol>
+      </section>
 
-        <DashboardCard
-          label="Needs Improvement"
-          value={loading ? "..." : stats.weakestSkill}
-          icon={TrendingDown}
-          tone="warning"
-          hint="Focus area"
-        />
-      </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <DashboardCard
-          label="Resume Match"
-          value={loading ? "..." : `${stats.resumeMatchScore}%`}
-          icon={Target}
-          hint="Average from final reports"
-        />
-
-        <DashboardCard
-          label="Company Readiness"
-          value={loading ? "..." : `${stats.companyReadinessScore}%`}
-          icon={Building2}
-          hint="Target company alignment"
-        />
-
-        <DashboardCard
-          label="Speech Confidence"
-          value={loading ? "..." : `${stats.speechConfidenceScore}%`}
-          icon={Mic}
-          tone="success"
-          hint="Voice and pace signals"
-        />
-
-        <DashboardCard
-          label="Camera Presence"
-          value={loading ? "..." : `${stats.cameraPresenceScore}%`}
-          icon={Camera}
-          tone="warning"
-          hint="Video mode presence"
-        />
-      </div>
-
-      <div className="mt-10">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">Active Practice</h2>
-
-          <Link to="/start" className="text-sm font-medium text-primary hover:underline">
+      <section className="app-section">
+        <div className="app-section-heading">
+          <div>
+            <h2>Active practice</h2>
+            <p>Continue without losing your saved progress.</p>
+          </div>
+          <Link to="/start" className="text-sm font-semibold underline underline-offset-4">
             Start new
           </Link>
         </div>
-
         {loading ? (
-          <div className="mt-4 rounded-3xl border border-border bg-card p-6 text-sm text-muted-foreground">
-            Loading active sessions...
+          <div className="app-state" role="status">
+            Loading active sessions…
           </div>
         ) : activeSessions.length === 0 ? (
-          <div className="mt-4 rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-            <p className="text-muted-foreground">No unfinished sessions right now.</p>
-
-            <Button asChild className="mt-4">
-              <Link to="/start">Start New Interview</Link>
-            </Button>
-          </div>
+          <EmptyState
+            title="No unfinished sessions"
+            description="Your active sessions will appear here when you choose to continue later."
+            action={
+              <Button asChild>
+                <Link to="/start">Start an interview</Link>
+              </Button>
+            }
+          />
         ) : (
-          <div className="mt-4 grid gap-3">
+          <div className="app-panel overflow-hidden">
             {activeSessions.map((session) => (
-              <div
-                key={session.id}
-                className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-5 shadow-elegant sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <h3 className="font-semibold">{session.targetRole || session.role}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {session.type} - {session.difficulty || "Practice"} - {session.date}
-                  </p>
+              <div key={session.id} className="session-row">
+                <div className="session-row__title">
+                  <strong>{session.targetRole || session.role}</strong>
+                  <span>
+                    {session.type} · {session.difficulty || "Practice"} · {session.date}
+                  </span>
                 </div>
-
-                <Button type="button" onClick={() => handleContinueSession(session)}>
-                  Continue Interview
-                </Button>
+                <div className="session-row__meta">
+                  <strong>{session.mode || "Text"}</strong>
+                  <span>Mode</span>
+                </div>
+                <div className="status-pill">In progress</div>
+                <Button onClick={() => handleContinueSession(session)}>Continue</Button>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      <div className="mt-10">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">Completed Sessions</h2>
-
-          <Link to="/history" className="text-sm font-medium text-primary hover:underline">
-            View all
+      <section className="app-section">
+        <div className="app-section-heading">
+          <div>
+            <h2>Recent sessions</h2>
+            <p>Your latest completed preparation.</p>
+          </div>
+          <Link to="/history" className="text-sm font-semibold underline underline-offset-4">
+            View history
           </Link>
         </div>
-
         {loading ? (
-          <div className="mt-4 rounded-3xl border border-border bg-card p-6 text-sm text-muted-foreground">
-            Loading completed sessions...
+          <div className="app-state" role="status">
+            Loading completed sessions…
           </div>
         ) : completedSessions.length === 0 ? (
-          <div className="mt-4 rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-            <p className="text-muted-foreground">
-              Completed sessions will appear here after you finish an interview.
-            </p>
-          </div>
+          <EmptyState
+            title="No completed sessions yet"
+            description="Complete your first interview to see scores, feedback and progress here."
+          />
         ) : (
-          <div className="mt-4 space-y-3">
+          <div className="app-panel overflow-hidden">
             {completedSessions.slice(0, 5).map((session) => (
               <SessionHistoryCard key={session.id} session={session} />
             ))}
           </div>
         )}
-      </div>
+      </section>
+
+      <section className="app-section">
+        <div className="app-section-heading">
+          <div>
+            <h2>Professional Profile</h2>
+            <p>Your analysed résumé shapes questions and recommendations.</p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/resume" search={{ from: "today" }}>
+              {profile ? "Review profile" : "Create profile"}
+            </Link>
+          </Button>
+        </div>
+        <div className="app-panel p-7">
+          <span className={profile ? "status-pill status-pill--success" : "status-pill"}>
+            {profile ? "Profile ready" : "No profile"}
+          </span>
+          <p className="mt-4 text-sm font-semibold">
+            {profile?.fileName || "Personalised Practice requires an analysed résumé."}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {profile?.uploadedAt
+              ? `Last analysed ${new Date(profile.uploadedAt).toLocaleDateString()}.`
+              : "Create your Professional Profile to use real skills, projects and experience in practice."}
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

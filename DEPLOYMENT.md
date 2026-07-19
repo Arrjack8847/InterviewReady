@@ -10,6 +10,14 @@ Do not commit real `.env` values. Add production secrets only in Render, Vercel,
 
 ## 1. Local Final Check
 
+Start both the frontend and backend for local development:
+
+```bash
+npm run dev
+```
+
+The frontend and the API on port 5055 must both be running for resume analysis and AI features.
+
 From the project root:
 
 ```bash
@@ -88,6 +96,10 @@ Optional Render environment variables:
 - AI_JSON_MODE=true
 - AI_MAX_TOKENS=600
 - AI_TEMPERATURE=0.25
+- AI_REQUEST_TIMEOUT_MS=30000
+- API_RATE_LIMIT=120
+- AI_RATE_LIMIT=30
+- RESUME_RATE_LIMIT=10
 
 Notes:
 
@@ -220,3 +232,5 @@ Before pushing:
 - Confirm `.env`, `.env.local`, and `server/.env` are ignored.
 - Rotate any backend secret that was ever committed or shared.
 - Keep OpenRouter and Supabase service role keys only in Render.
+- Use `npm run archive:source` to export committed source without ignored secrets, dependencies, logs, or build output.
+- Changing `.gitignore` does not invalidate credentials that were previously exposed; rotate those credentials manually in every provider dashboard.

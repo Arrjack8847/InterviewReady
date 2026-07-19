@@ -9,13 +9,13 @@ export function HeroSection() {
         <div className="mx-auto max-w-3xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-success" />
-            AI-powered interview coaching for students
+            AI-powered interview coaching for every career stage
           </span>
           <h1 className="mt-6 text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
             Practice Smarter. <span className="text-primary-gradient">Interview Better.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            InterviewReady AI helps students and fresh graduates prepare for real job interviews
+            InterviewReady AI helps candidates across professions and experience levels prepare for real job interviews
             with role-based questions, instant AI feedback, and progress tracking — all in one calm,
             focused workspace.
           </p>
@@ -43,7 +43,7 @@ export function HeroSection() {
               <div className="grid gap-4 sm:grid-cols-3">
                 {[
                   { k: "12k+", v: "Practice sessions completed" },
-                  { k: "94%", v: "Students feel more confident" },
+                  { k: "94%", v: "Candidates feel more confident" },
                   { k: "5 min", v: "To get your first feedback" },
                 ].map((s) => (
                   <div key={s.v} className="rounded-xl bg-card p-5 text-center">

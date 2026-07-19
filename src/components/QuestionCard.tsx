@@ -25,7 +25,7 @@ export function QuestionCard({
   disabled,
 }: Props) {
   return (
-    <div className="rounded-3xl border border-border bg-card p-6 shadow-elegant sm:p-8">
+    <section className="app-panel p-6 sm:p-8" aria-labelledby="interview-question">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>
           Question <span className="font-semibold text-foreground">{index + 1}</span> of {total}
@@ -34,11 +34,14 @@ export function QuestionCard({
       </div>
       <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full bg-primary-gradient transition-all"
+          className="h-full bg-foreground transition-all"
           style={{ width: `${((index + 1) / total) * 100}%` }}
         />
       </div>
-      <h2 className="mt-6 font-display text-2xl font-semibold leading-snug sm:text-3xl">
+      <h2
+        id="interview-question"
+        className="mt-6 font-display text-2xl font-semibold leading-snug sm:text-3xl"
+      >
         {question.text}
       </h2>
       <Textarea
@@ -55,7 +58,7 @@ export function QuestionCard({
           <div>
             <p className="text-sm font-semibold text-primary">Analyzing your answer…</p>
             <p className="text-xs text-muted-foreground">
-              Scoring clarity, structure, and technical accuracy.
+              Scoring clarity, structure, and role-specific knowledge.
             </p>
           </div>
         </div>
@@ -68,7 +71,7 @@ export function QuestionCard({
         <Button
           onClick={onSubmit}
           disabled={loading || disabled || answer.trim().length < 5}
-          className="w-full bg-primary-gradient text-primary-foreground shadow-elegant hover:opacity-90 sm:w-auto"
+          className="w-full sm:w-auto"
         >
           {loading ? (
             <>
@@ -81,6 +84,6 @@ export function QuestionCard({
           )}
         </Button>
       </div>
-    </div>
+    </section>
   );
 }

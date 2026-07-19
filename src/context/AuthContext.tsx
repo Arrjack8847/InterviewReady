@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       requireSupabaseConfig();
 
-      const cleanName = name.trim() || "Student";
+      const cleanName = name.trim() || "Candidate";
       const cleanEmail = email.trim();
 
       const { data, error } = await supabase.auth.signUp({

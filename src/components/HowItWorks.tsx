@@ -7,12 +7,12 @@ const STEPS = [
   {
     n: "02",
     title: "Answer interview questions",
-    desc: "AI-generated questions tailored to your role and difficulty.",
+    desc: "AI-generated questions tailored to your role and experience level.",
   },
   {
     n: "03",
     title: "Receive AI feedback",
-    desc: "Get clarity, structure, and technical scores with concrete tips.",
+    desc: "Get clarity, structure, and role-specific scores with concrete tips.",
   },
   {
     n: "04",

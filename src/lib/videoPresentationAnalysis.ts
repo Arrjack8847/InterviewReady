@@ -1,6 +1,10 @@
-import { FaceLandmarker, FilesetResolver, type NormalizedLandmark } from "@mediapipe/tasks-vision";
+import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 
 import { createHandAnalyzer, type HandAnalyzerController } from "@/lib/handAnalysis";
+import {
+  createInterviewFaceLandmarker,
+  readFaceDetectionResult,
+} from "@/features/interview/monitoring/face/createFaceLandmarker";
 import { clampScore } from "@/lib/metrics";
 
 export interface VideoPresentationMetrics {
@@ -85,10 +89,6 @@ export type EyeContactDirectionEstimate = EyeContactDirectionSample & {
   eyeContactEstimated: boolean;
 };
 
-const FACE_LANDMARKER_MODEL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
-
-const WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
 const MAX_MOVEMENT_SAMPLES = 90;
 const STABLE_MOVEMENT_THRESHOLD = 0.018;
 const NOSE_TIP_INDEX = 1;
@@ -102,18 +102,6 @@ const BASELINE_YAW_THRESHOLD = 0.13;
 const BASELINE_IRIS_THRESHOLD = 0.2;
 const BASELINE_FACE_CENTER_THRESHOLD = 0.18;
 const DEFAULT_IRIS_CENTER = 0.5;
-
-let visionResolverPromise: Promise<
-  Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>
-> | null = null;
-
-function getVisionResolver() {
-  if (!visionResolverPromise) {
-    visionResolverPromise = FilesetResolver.forVisionTasks(WASM_PATH);
-  }
-
-  return visionResolverPromise;
-}
 
 function getEmptyCounters(): PresentationCounters {
   return {
@@ -342,7 +330,7 @@ function buildVisualSummary(metrics: Omit<VideoPresentationMetrics, "visualSumma
   }
 
   if (metrics.eyeContactScore >= 70) {
-    summary.push("Your eye-contact direction estimate was generally screen-facing.");
+    summary.push("Your facial orientation was generally toward the camera or screen.");
   } else if (metrics.validFaceFrames > 0) {
     summary.push(
       "Your screen-facing direction estimate varied; brief glances down to type are expected.",
@@ -374,9 +362,8 @@ function buildMetrics(counters: PresentationCounters): VideoPresentationMetrics 
     cameraPresenceScore * 0.15 +
       faceVisibilityScore * 0.25 +
       faceCenteringScore * 0.2 +
-      movementStabilityScore * 0.18 +
-      eyeContactScore * 0.15 +
-      handVisibilityScore * 0.07,
+      movementStabilityScore * 0.2 +
+      eyeContactScore * 0.2,
   );
   const analysisDurationMs =
     counters.analysisStartedAt !== null && counters.lastAnalyzedAt !== null
@@ -413,16 +400,8 @@ function buildMetrics(counters: PresentationCounters): VideoPresentationMetrics 
 }
 
 export async function createVideoPresentationAnalyzer(): Promise<VideoPresentationAnalyzerController> {
-  const vision = await getVisionResolver();
-  const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath: FACE_LANDMARKER_MODEL,
-      delegate: "GPU",
-    },
-    runningMode: "VIDEO",
-    numFaces: 1,
-    outputFaceBlendshapes: false,
-    outputFacialTransformationMatrixes: false,
+  const faceLandmarker = await createInterviewFaceLandmarker({
+    maxFaces: 2,
   });
 
   let handAnalyzer: HandAnalyzerController | null = null;
@@ -448,7 +427,8 @@ export async function createVideoPresentationAnalyzer(): Promise<VideoPresentati
       counters.cameraActiveFrames += 1;
 
       const faceResult = faceLandmarker.detectForVideo(video, timestampMs);
-      const faceLandmarks = faceResult.faceLandmarks?.[0] || [];
+      const faceDetection = readFaceDetectionResult(faceResult);
+      const faceLandmarks = faceDetection.primaryFace ?? [];
       const handResult = handAnalyzer?.detect(video, timestampMs);
       const handDetected = Boolean(handResult?.handDetected);
 

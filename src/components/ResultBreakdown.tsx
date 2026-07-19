@@ -9,21 +9,25 @@ const LABELS: Record<string, string> = {
   clarity: "Clarity",
   relevance: "Relevance",
   structure: "Structure",
-  confidence: "Confidence",
-  technicalAccuracy: "Technical Accuracy",
+  confidence: "Answer communication",
+  technicalAccuracy: "Role-Specific Knowledge",
   communication: "Communication",
   resumeMatch: "Resume Match",
   companyReadiness: "Company Readiness",
-  speechConfidence: "Speech Confidence",
+  speechConfidence: "Speech Delivery",
   cameraPresence: "Camera Presence",
 };
 
 export function ResultBreakdown({ breakdown }: Props) {
+  const entries = Object.entries(breakdown).filter(([, value]) => typeof value === "number");
+
   return (
-    <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
-      <h3 className="font-display text-xl font-semibold">Skill breakdown</h3>
+    <section className="app-panel p-6 sm:p-8" aria-labelledby="skill-breakdown-title">
+      <h3 id="skill-breakdown-title" className="font-display text-xl font-semibold">
+        Skill breakdown
+      </h3>
       <div className="mt-6 space-y-5">
-        {Object.entries(breakdown).map(([key, value = 0]) => (
+        {entries.map(([key, value = 0]) => (
           <div key={key}>
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">{LABELS[key] ?? key}</span>
@@ -33,6 +37,6 @@ export function ResultBreakdown({ breakdown }: Props) {
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

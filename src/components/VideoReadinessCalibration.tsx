@@ -8,13 +8,21 @@ import {
   Eye,
   Loader2,
   ScanFace,
-  Sparkles,
+  Video,
 } from "lucide-react";
-import { FaceLandmarker, FilesetResolver, type NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { FaceLandmarker, type NormalizedLandmark } from "@mediapipe/tasks-vision";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createHandAnalyzer, type HandAnalyzerController } from "@/lib/handAnalysis";
+import {
+  createInterviewFaceLandmarker,
+  readFaceDetectionResult,
+} from "@/features/interview/monitoring/face/createFaceLandmarker";
+import {
+  mapInterviewMediaError,
+  requestInterviewCameraStream,
+} from "@/features/interview/mediaErrors";
 import {
   buildEyeContactBaseline,
   estimateEyeContactDirection,
@@ -49,11 +57,6 @@ type FaceBox = {
   width: number;
   height: number;
 };
-
-const FACE_LANDMARKER_MODEL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
-
-const WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
 
 const clamp = (value: number, min: number, max: number) => {
   return Math.min(Math.max(value, min), max);
@@ -198,9 +201,9 @@ const buildPresentationMetrics = (
       ? "Movement stability was suitable for interview presentation."
       : "Reduce unnecessary movement to improve presentation stability.",
     counters.validFaceFrames === 0
-      ? "Eye-contact direction estimate was not captured long enough for scoring."
+      ? "Camera-engagement orientation was not captured long enough for coaching."
       : eyeContactScore >= 70
-        ? "Your eye-contact direction estimate was generally screen-facing."
+        ? "Your facial orientation was generally toward the camera or screen."
         : "Your screen-facing direction estimate varied; brief glances down to type are expected.",
     handVisibilityScore > 0
       ? "Hand visibility was detected during the session."
@@ -244,8 +247,14 @@ export function VideoReadinessCalibration({
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const brightnessCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const streamTransferredRef = useRef(false);
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
   const handAnalyzerRef = useRef<HandAnalyzerController | null>(null);
+  const faceLandmarkerPromiseRef = useRef<Promise<FaceLandmarker> | null>(null);
+  const handAnalyzerPromiseRef = useRef<Promise<HandAnalyzerController> | null>(null);
+  const mountedRef = useRef(true);
+  const loadGenerationRef = useRef(0);
+  const cameraRequestPromiseRef = useRef<Promise<void> | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef(-1);
   const stableStartTimeRef = useRef<number | null>(null);
@@ -263,6 +272,7 @@ export function VideoReadinessCalibration({
 
   const [cameraStarted, setCameraStarted] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [modelError, setModelError] = useState("");
   const [modelLoading, setModelLoading] = useState(false);
   const [modelReady, setModelReady] = useState(false);
 
@@ -488,6 +498,8 @@ export function VideoReadinessCalibration({
     resetCalibration?: boolean;
     emitPausedMetrics?: boolean;
   } = {}) => {
+    streamTransferredRef.current = false;
+
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
@@ -542,9 +554,37 @@ export function VideoReadinessCalibration({
   }, [interviewStarted]);
 
   useEffect(() => {
+    mountedRef.current = true;
+
+    const ownedVideoElement = videoRef.current;
+
     return () => {
-      stopCamera({ resetCalibration: true, emitPausedMetrics: false });
+      mountedRef.current = false;
+      loadGenerationRef.current += 1;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+
       stopInactiveMetricsUpdates();
+      markCameraInactive();
+
+      /*
+       * After successful calibration, ownership of the MediaStream is
+       * transferred to the interview route. Do not stop its tracks here.
+       */
+      if (!streamTransferredRef.current && streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        onStreamReady?.(null);
+        onCameraStopped?.();
+      }
+
+      if (ownedVideoElement) {
+        ownedVideoElement.srcObject = null;
+      }
+
+      streamRef.current = null;
+
       faceLandmarkerRef.current?.close();
       handAnalyzerRef.current?.close();
       faceLandmarkerRef.current = null;
@@ -563,51 +603,61 @@ export function VideoReadinessCalibration({
       video.srcObject = stream;
     }
 
-    video.play().catch(() => {
+    void video.play().catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
       setCameraError("Camera preview could not resume automatically. Please restart video setup.");
     });
   }, [interviewStarted, cameraStarted]);
 
   const loadFaceLandmarker = async () => {
     if (faceLandmarkerRef.current) return faceLandmarkerRef.current;
+    if (faceLandmarkerPromiseRef.current) return faceLandmarkerPromiseRef.current;
 
     setModelLoading(true);
     updateCheck("model", "checking", "Loading", "Loading face detection model in the browser...");
-
-    const vision = await FilesetResolver.forVisionTasks(WASM_PATH);
-
-    const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: FACE_LANDMARKER_MODEL,
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      numFaces: 1,
-      outputFaceBlendshapes: false,
-      outputFacialTransformationMatrixes: false,
+    const generation = loadGenerationRef.current;
+    const pending = createInterviewFaceLandmarker({
+      maxFaces: 2,
     });
-
-    faceLandmarkerRef.current = faceLandmarker;
-    setModelReady(true);
-    setModelLoading(false);
-
-    updateCheck(
-      "model",
-      "passed",
-      "Ready",
-      "Face detection model is ready for live camera analysis.",
-    );
-
-    return faceLandmarker;
+    faceLandmarkerPromiseRef.current = pending;
+    try {
+      const faceLandmarker = await pending;
+      if (!mountedRef.current || loadGenerationRef.current !== generation) {
+        faceLandmarker.close();
+        throw new DOMException("Model loading was cancelled.", "AbortError");
+      }
+      faceLandmarkerRef.current = faceLandmarker;
+      setModelReady(true);
+      setModelLoading(false);
+      updateCheck(
+        "model",
+        "passed",
+        "Ready",
+        "Face detection model is ready for live camera analysis.",
+      );
+      return faceLandmarker;
+    } finally {
+      if (faceLandmarkerPromiseRef.current === pending) faceLandmarkerPromiseRef.current = null;
+    }
   };
 
   const loadHandAnalyzer = async () => {
     if (handAnalyzerRef.current) return handAnalyzerRef.current;
+    if (handAnalyzerPromiseRef.current) return handAnalyzerPromiseRef.current;
 
     updateCheck("hands", "checking", "Loading", "Loading hand detection model in the browser...");
-
+    const generation = loadGenerationRef.current;
+    const pending = createHandAnalyzer();
+    handAnalyzerPromiseRef.current = pending;
     try {
-      const handAnalyzer = await createHandAnalyzer();
+      const handAnalyzer = await pending;
+      if (!mountedRef.current || loadGenerationRef.current !== generation) {
+        handAnalyzer.close();
+        throw new DOMException("Model loading was cancelled.", "AbortError");
+      }
 
       handAnalyzerRef.current = handAnalyzer;
 
@@ -622,6 +672,8 @@ export function VideoReadinessCalibration({
     } catch (error) {
       console.warn("Hand detection calibration model could not be loaded:", error);
 
+      if (!mountedRef.current || loadGenerationRef.current !== generation) return null;
+
       updateCheck(
         "hands",
         "warning",
@@ -630,6 +682,8 @@ export function VideoReadinessCalibration({
       );
 
       return null;
+    } finally {
+      if (handAnalyzerPromiseRef.current === pending) handAnalyzerPromiseRef.current = null;
     }
   };
 
@@ -654,10 +708,65 @@ export function VideoReadinessCalibration({
       counters.frameCount += 1;
 
       const result = faceLandmarker.detectForVideo(video, now);
+      const faceDetection = readFaceDetectionResult(result);
       const handAnalysis = handAnalyzer?.detect(video, now);
 
-      const landmarks = result.faceLandmarks?.[0];
+      const landmarks = faceDetection.primaryFace;
       const hands = handAnalysis?.hands || [];
+
+      if (faceDetection.hasMultipleFaces) {
+        resetHoldTimer();
+
+        setFaceDetected(false);
+        setFaceCentered(false);
+        setHandDetected(false);
+        setHandCount(0);
+        setProgress(35);
+        setIsComplete(false);
+
+        clearCanvas();
+
+        updateCheck(
+          "face",
+          "warning",
+          `${faceDetection.faceCount} faces`,
+          "More than one face is visible. Continue when only you are in the frame.",
+        );
+        updateCheck(
+          "landmarks",
+          "warning",
+          undefined,
+          "Face landmark calibration requires exactly one visible face.",
+        );
+        updateCheck(
+          "center",
+          "waiting",
+          undefined,
+          "Centering will resume when exactly one face is visible.",
+        );
+        updateCheck(
+          "screen-facing",
+          "waiting",
+          "Waiting",
+          "Screen-facing calibration will resume when exactly one face is visible.",
+        );
+        updateCheck(
+          "movement",
+          "waiting",
+          "Waiting",
+          "Stability calibration will resume when exactly one face is visible.",
+        );
+
+        emitMetrics({
+          faceDetected: false,
+          faceCentered: false,
+          handDetected: false,
+          eyeContactEstimated: false,
+        });
+
+        animationFrameRef.current = requestAnimationFrame(analyzeFrame);
+        return;
+      }
 
       if (!landmarks) {
         resetHoldTimer();
@@ -952,16 +1061,81 @@ export function VideoReadinessCalibration({
     animationFrameRef.current = requestAnimationFrame(analyzeFrame);
   };
 
-  const startCamera = async ({
+  const startDetectionAnalysis = async (stream: MediaStream) => {
+    setModelError("");
+
+    try {
+      const [faceLandmarker] = await Promise.all([loadFaceLandmarker(), loadHandAnalyzer()]);
+
+      if (
+        !mountedRef.current ||
+        streamRef.current !== stream ||
+        !stream.active ||
+        stream.getVideoTracks().every((track) => track.readyState !== "live")
+      ) {
+        return;
+      }
+
+      if (!faceLandmarker) {
+        throw new Error("Face detection model failed to load.");
+      }
+
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      lastVideoTimeRef.current = -1;
+      animationFrameRef.current = requestAnimationFrame(analyzeFrame);
+    } catch (error) {
+      if (
+        !mountedRef.current ||
+        (error instanceof DOMException && error.name === "AbortError")
+      ) {
+        return;
+      }
+
+      console.error("Visual monitoring model failed to load:", error);
+
+      setModelLoading(false);
+      setModelReady(false);
+      setModelError(
+        "The camera is active, but face analysis could not load. Check your connection and retry detection.",
+      );
+
+      updateCheck(
+        "model",
+        "warning",
+        "Unavailable",
+        "The camera is working, but browser-based face analysis could not load.",
+      );
+
+      updateCheck(
+        "face",
+        "waiting",
+        "Waiting",
+        "Face calibration will begin after the detection model loads.",
+      );
+
+      updateCheck(
+        "landmarks",
+        "waiting",
+        "Waiting",
+        "Facial landmark calibration is temporarily unavailable.",
+      );
+    }
+  };
+
+  const runStartCamera = async ({
     resetMetrics = !interviewStartedRef.current,
   }: {
     resetMetrics?: boolean;
   } = {}) => {
     try {
       setCameraError("");
+      setModelError("");
       stopInactiveMetricsUpdates();
 
-      if (animationFrameRef.current) {
+      if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
@@ -987,6 +1161,12 @@ export function VideoReadinessCalibration({
       setHandCount(0);
 
       updateCheck("camera", "checking", "Requesting", "Requesting camera permission...");
+      updateCheck(
+        "model",
+        "waiting",
+        "Waiting",
+        "Detection models will load after the camera preview starts.",
+      );
       updateCheck("face", "waiting", undefined, "Waiting for a face to appear in the frame.");
       updateCheck("landmarks", "waiting", undefined, "Waiting to map face landmark points.");
       updateCheck("center", "waiting", undefined, "Align your face near the center guide.");
@@ -996,73 +1176,191 @@ export function VideoReadinessCalibration({
         undefined,
         "Look naturally at the screen or camera during the steady hold.",
       );
-      updateCheck("lighting", "waiting", undefined, "Checking brightness from the camera preview.");
+      updateCheck("lighting", "waiting", undefined, "Waiting for the camera preview.");
       updateCheck(
         "hands",
         "waiting",
         undefined,
-        "Show your hands briefly to map hand landmark points.",
+        "Hand detection will load after the camera preview starts.",
       );
       updateCheck("movement", "waiting", "Waiting", "Hold your position steady for 5 seconds.");
 
-      const faceLandmarker = await loadFaceLandmarker();
-      await loadHandAnalyzer();
+      let stream: MediaStream;
 
-      if (!faceLandmarker) {
-        throw new Error("Face detection model failed to load.");
+      try {
+        /*
+         * Start the camera before loading MediaPipe. A network or model-loading
+         * failure must never prevent the browser permission prompt or preview.
+         */
+        stream = await requestInterviewCameraStream();
+      } catch (error) {
+        if (!mountedRef.current) return;
+
+        const mediaError = mapInterviewMediaError("camera", error);
+
+        setCameraStarted(false);
+        setCameraError(mediaError.message);
+        updateCheck("camera", "warning", "Failed", mediaError.message);
+
+        if (interviewStartedRef.current) {
+          startInactiveMetricsUpdates();
+        }
+
+        return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: "user",
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      if (streamRef.current && streamRef.current !== stream) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
+      const videoTrack = stream.getVideoTracks()[0];
+
+      if (!videoTrack) {
+        stream.getTracks().forEach((track) => track.stop());
+        setCameraStarted(false);
+        setCameraError("No video track was returned by the selected camera.");
+        updateCheck(
+          "camera",
+          "warning",
+          "Failed",
+          "No video track was returned by the selected camera.",
+        );
+        return;
+      }
+
+      streamTransferredRef.current = false;
+      streamRef.current = stream;
+
+      videoTrack.addEventListener(
+        "ended",
+        () => {
+          if (!mountedRef.current || streamRef.current !== stream) return;
+
+          markCameraInactive();
+          setCameraStarted(false);
+          setCameraError("Camera access was interrupted. Reconnect the camera to continue.");
+          updateCheck(
+            "camera",
+            "warning",
+            "Disconnected",
+            "Camera access was interrupted. Reconnect the camera to continue.",
+          );
         },
-        audio: false,
+        { once: true },
+      );
+
+      videoTrack.addEventListener("mute", () => {
+        if (!mountedRef.current || streamRef.current !== stream) return;
+
+        setCameraError(
+          "Camera video is temporarily interrupted. The preview will recover when the device resumes.",
+        );
       });
 
-      streamRef.current = stream;
+      videoTrack.addEventListener("unmute", () => {
+        if (!mountedRef.current || streamRef.current !== stream) return;
+        setCameraError("");
+      });
+
       markCameraActive();
       onStreamReady?.(stream);
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      const video = videoRef.current;
+
+      if (video) {
+        video.srcObject = stream;
+
+        try {
+          await video.play();
+        } catch (error) {
+          const isExpectedAbort = error instanceof DOMException && error.name === "AbortError";
+
+          if (!isExpectedAbort) {
+            console.warn("Camera preview play() failed:", error);
+          }
+        }
+      }
+
+      if (!mountedRef.current || streamRef.current !== stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
       }
 
       setCameraStarted(true);
       updateCheck("camera", "passed", "Passed", "Camera preview is active.");
       setProgress(30);
 
-      animationFrameRef.current = requestAnimationFrame(analyzeFrame);
+      /*
+       * Load face and hand analysis only after the live preview is visible.
+       * Model failure leaves the camera running and exposes a retry action.
+       */
+      await startDetectionAnalysis(stream);
     } catch (error) {
-      console.error("Camera or face/hand detection error:", error);
+      console.error("Unexpected camera setup failure:", error);
 
-      setCameraError(
-        "Camera or detection setup failed. Please allow camera permission, check your internet connection, and try again.",
-      );
+      if (!mountedRef.current) return;
 
       setModelLoading(false);
-      setCameraStarted(false);
-
-      if (interviewStartedRef.current) {
-        startInactiveMetricsUpdates();
-      }
-
-      updateCheck(
-        "camera",
-        "warning",
-        "Failed",
-        "Camera access was not allowed or no camera was found.",
-      );
+      setCameraError("Camera setup encountered an unexpected error. Please retry.");
     }
   };
 
+  const startCamera = (options: { resetMetrics?: boolean } = {}) => {
+    if (cameraRequestPromiseRef.current) {
+      return cameraRequestPromiseRef.current;
+    }
+
+    const pending = runStartCamera(options);
+    cameraRequestPromiseRef.current = pending;
+
+    const clearPendingRequest = () => {
+      if (cameraRequestPromiseRef.current === pending) {
+        cameraRequestPromiseRef.current = null;
+      }
+    };
+
+    void pending.then(clearPendingRequest, clearPendingRequest);
+
+    return pending;
+  };
+
+  const retryDetectionAnalysis = () => {
+    const stream = streamRef.current;
+
+    if (!stream || !stream.active) {
+      setCameraError("The camera stream is no longer active. Turn the camera on again.");
+      return;
+    }
+
+    void startDetectionAnalysis(stream);
+  };
+
   const handleStartInterview = () => {
+    const stream = streamRef.current;
+
+    const videoTrack = stream?.getVideoTracks()[0];
+
+    if (!stream || !stream.active || !videoTrack || videoTrack.readyState !== "live") {
+      setCameraError("The camera stream is no longer active. Please restart the video setup.");
+      return;
+    }
+
+    /*
+     * The parent interview route now owns this stream. The calibration
+     * component may unmount without ending the camera tracks.
+     */
+    streamTransferredRef.current = true;
+    onStreamReady?.(stream);
     onComplete();
   };
 
   const handleTurnOffCamera = () => {
+    streamTransferredRef.current = false;
     stopCamera({ resetCalibration: false, emitPausedMetrics: true });
   };
 
@@ -1071,6 +1369,7 @@ export function VideoReadinessCalibration({
   };
 
   const handleBack = () => {
+    streamTransferredRef.current = false;
     stopCamera({ resetCalibration: true, emitPausedMetrics: false });
     onBack();
   };
@@ -1163,23 +1462,15 @@ export function VideoReadinessCalibration({
                     Turn Off Camera
                   </Button>
                 ) : (
-                  <Button
-                    type="button"
-                    onClick={handleTurnOnCamera}
-                    disabled={modelLoading}
-                    className="gap-2"
-                  >
-                    {modelLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Camera className="h-4 w-4" />
-                    )}
+                  <Button type="button" onClick={handleTurnOnCamera} className="gap-2">
+                    <Camera className="h-4 w-4" />
                     Turn Camera On
                   </Button>
                 )}
               </div>
 
               {cameraError && <p className="text-sm text-destructive">{cameraError}</p>}
+              {modelError && <p className="text-sm text-amber-600">{modelError}</p>}
             </div>
           </div>
 
@@ -1191,7 +1482,7 @@ export function VideoReadinessCalibration({
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-background px-4 py-6">
+    <div className="video-calibration fixed inset-0 z-50 overflow-y-auto bg-background px-4 py-6">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex items-center justify-between gap-4">
           <Button variant="ghost" onClick={handleBack} className="gap-2">
@@ -1205,7 +1496,7 @@ export function VideoReadinessCalibration({
         </div>
 
         <div className="space-y-2 text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-foreground text-background">
             <ScanFace className="h-7 w-7" />
           </div>
 
@@ -1261,8 +1552,8 @@ export function VideoReadinessCalibration({
                     <div className="pointer-events-none absolute inset-8 rounded-[2rem] border-2 border-white/30" />
 
                     <div
-                      className={`pointer-events-none absolute left-1/2 top-1/2 h-[48%] w-[28%] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-[0_0_45px_rgba(34,211,238,0.35)] ${
-                        faceDetected ? "border-emerald-400/80" : "border-cyan-300/70"
+                      className={`pointer-events-none absolute left-1/2 top-1/2 h-[48%] w-[28%] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${
+                        faceDetected ? "border-emerald-400/80" : "border-white/70"
                       }`}
                     />
 
@@ -1270,7 +1561,7 @@ export function VideoReadinessCalibration({
                       {faceDetected ? (
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                       ) : (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-300" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
                       )}
                       {faceDetected ? "Face detected" : "Scanning for face..."}
                     </div>
@@ -1319,8 +1610,14 @@ export function VideoReadinessCalibration({
               </div>
 
               {cameraError && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                   {cameraError}
+                </div>
+              )}
+
+              {modelError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  {modelError}
                 </div>
               )}
 
@@ -1351,15 +1648,24 @@ export function VideoReadinessCalibration({
               {!cameraStarted ? (
                 <Button
                   onClick={() => void startCamera({ resetMetrics: true })}
+                  className="w-full gap-2"
+                >
+                  <Camera className="h-4 w-4" />
+                  Start Detection Check
+                </Button>
+              ) : !modelReady ? (
+                <Button
+                  type="button"
+                  onClick={retryDetectionAnalysis}
                   disabled={modelLoading}
                   className="w-full gap-2"
                 >
                   {modelLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Camera className="h-4 w-4" />
+                    <ScanFace className="h-4 w-4" />
                   )}
-                  {modelLoading ? "Loading Detection Models..." : "Start Detection Check"}
+                  {modelLoading ? "Loading Detection Models..." : "Retry Detection Models"}
                 </Button>
               ) : (
                 <Button
@@ -1369,7 +1675,7 @@ export function VideoReadinessCalibration({
                 >
                   {isComplete ? (
                     <>
-                      <Sparkles className="h-4 w-4" />
+                      <Video className="h-4 w-4" />
                       Start Video Interview
                     </>
                   ) : (
@@ -1382,8 +1688,9 @@ export function VideoReadinessCalibration({
               )}
 
               <p className="text-center text-xs text-muted-foreground">
-                Video stays in the browser. This setup checks presentation signals before the
-                interview starts.
+                Camera access is used for the live preview and visual coaching. Video and landmark
+                data stay in this browser and are not recorded or uploaded; only aggregated coaching
+                metrics are saved.
               </p>
             </CardContent>
           </Card>
@@ -1426,7 +1733,7 @@ export function VideoReadinessCalibration({
               </div>
 
               {modelReady && (
-                <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-800">
+                <div className="rounded-2xl border border-border bg-muted p-4 text-sm text-foreground">
                   Browser-based face and hand detection models loaded successfully.
                 </div>
               )}

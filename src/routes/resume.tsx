@@ -1,49 +1,59 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertCircle,
-  BarChart3,
-  Briefcase,
-  Crosshair,
+  ArrowRight,
+  Check,
   ExternalLink,
   FileText,
-  Folder,
-  GraduationCap,
-  MessageSquareText,
   RefreshCw,
-  Sparkles,
-  Target,
   Trash2,
   Upload,
-  type LucideIcon,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { PageHeader } from "@/components/app/PageHeader";
 import { RequireAuth } from "@/components/RequireAuth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { recommendCompanies, type CompanyRecommendationResponse } from "@/lib/api";
 import { uploadResumeForUser } from "@/lib/resumeService";
+import { savePracticeDraft } from "@/lib/practiceDraft";
+
+type ProfileSource = "practice" | "today" | "account";
+type ProfileView = "creation" | "selected" | "processing" | "failure" | "profile";
+
+function getProfileSource(value: unknown): ProfileSource | undefined {
+  return value === "practice" || value === "today" || value === "account" ? value : undefined;
+}
 
 export const Route = createFileRoute("/resume")({
+  validateSearch: (search: Record<string, unknown>): { from?: ProfileSource } => ({
+    from: getProfileSource(search.from),
+  }),
   head: () => ({
     meta: [
-      { title: "Resume — InterviewReady AI" },
+      { title: "Professional Profile — InterviewReady" },
       {
         name: "description",
-        content:
-          "Upload your resume and let InterviewReady AI analyze your skills, projects, strengths, weaknesses, and recommended roles.",
-      },
-      { property: "og:title", content: "Resume — InterviewReady AI" },
-      {
-        property: "og:description",
-        content: "Manage your resume for personalized interview practice.",
+        content: "Build a Professional Profile from your résumé for personalised practice.",
       },
     ],
   }),
   component: () => (
     <RequireAuth>
-      <ResumePage />
+      <ProfessionalProfilePage />
     </RequireAuth>
   ),
 });
@@ -56,7 +66,6 @@ type ResumeData = {
   fileType?: string;
   fileSize?: number;
   uploadedAt: string;
-
   skills: string[];
   projects: string[];
   recommendedRoles: string[];
@@ -65,7 +74,6 @@ type ResumeData = {
   strongAreas: string[];
   weakAreas: string[];
   parsedExperience: string[];
-
   summary: string;
   education: string;
   careerLevel: string;
@@ -77,31 +85,36 @@ const RESUME_STORAGE_KEY = "ir.resume";
 const COMPANY_RECOMMENDATION_STORAGE_KEY = "ir.companyRecommendations";
 const SELECTED_INTERVIEW_TARGET_KEY = "ir.selectedInterviewTarget";
 
-function ResumePage() {
+function ProfessionalProfilePage() {
   const { user } = useAuth();
-
+  const { from } = Route.useSearch();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [resume, setResume] = useState<ResumeData | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [view, setView] = useState<ProfileView>("creation");
   const [companyRecommendations, setCompanyRecommendations] =
     useState<CompanyRecommendationResponse | null>(null);
   const [error, setError] = useState("");
-  const [uploading, setUploading] = useState(false);
   const [recommending, setRecommending] = useState(false);
+  const [justCompleted, setJustCompleted] = useState(false);
+  const [selectedTarget, setSelectedTarget] = useState<{
+    targetRole?: string;
+    targetCompany?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     const savedResume = localStorage.getItem(RESUME_STORAGE_KEY);
-
     if (savedResume) {
       try {
         setResume(JSON.parse(savedResume) as ResumeData);
+        setView("profile");
       } catch {
         localStorage.removeItem(RESUME_STORAGE_KEY);
       }
     }
 
     const savedRecommendations = localStorage.getItem(COMPANY_RECOMMENDATION_STORAGE_KEY);
-
     if (savedRecommendations) {
       try {
         setCompanyRecommendations(
@@ -111,46 +124,60 @@ function ResumePage() {
         localStorage.removeItem(COMPANY_RECOMMENDATION_STORAGE_KEY);
       }
     }
+
+    const savedTarget = localStorage.getItem(SELECTED_INTERVIEW_TARGET_KEY);
+    if (savedTarget) {
+      try {
+        setSelectedTarget(
+          JSON.parse(savedTarget) as {
+            targetRole?: string;
+            targetCompany?: string;
+          },
+        );
+      } catch {
+        localStorage.removeItem(SELECTED_INTERVIEW_TARGET_KEY);
+      }
+    }
   }, []);
 
-  const handleResumeUpload = async (file: File) => {
-    if (!user) {
-      setError("You must be logged in to upload a resume.");
+  const validateAndSelectFile = (file: File) => {
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".pdf") && !name.endsWith(".docx")) {
+      setSelectedFile(null);
+      setError("Choose a PDF or DOCX résumé.");
+      setView("failure");
       return;
     }
-
-    const isAllowedFile =
-      file.name.toLowerCase().endsWith(".pdf") || file.name.toLowerCase().endsWith(".docx");
-
-    if (!isAllowedFile) {
-      setError("Please upload a PDF or DOCX resume.");
+    if (file.size > 5 * 1024 * 1024) {
+      setSelectedFile(null);
+      setError("Choose a résumé smaller than 5 MB.");
+      setView("failure");
       return;
     }
+    setSelectedFile(file);
+    setError("");
+    setView("selected");
+  };
 
-    const maxSize = 5 * 1024 * 1024;
-
-    if (file.size > maxSize) {
-      setError("Resume file is too large. Please upload a file smaller than 5MB.");
+  const handleAnalyzeResume = async () => {
+    if (!selectedFile || !user) {
+      setError("Choose a résumé before starting analysis.");
+      setView("failure");
       return;
     }
 
     try {
+      setView("processing");
       setError("");
-      setUploading(true);
-
-      const result = await uploadResumeForUser({
-        file,
-      });
-
+      const result = await uploadResumeForUser({ file: selectedFile });
       const uploadedResume: ResumeData = {
         resumeId: result.resumeId,
         fileName: result.fileName,
         fileUrl: result.fileUrl,
         filePath: result.filePath,
-        fileType: file.type || "Unknown file type",
-        fileSize: file.size,
+        fileType: selectedFile.type || getFileKind(selectedFile.name),
+        fileSize: selectedFile.size,
         uploadedAt: new Date().toISOString(),
-
         skills: result.parsedSkills || [],
         projects: result.parsedProjects || [],
         recommendedRoles: result.recommendedRoles || [],
@@ -159,39 +186,34 @@ function ResumePage() {
         strongAreas: result.strongAreas || [],
         weakAreas: result.weakAreas || [],
         parsedExperience: result.parsedExperience || [],
-
-        summary: result.resumeSummary || "Resume uploaded successfully.",
+        summary: result.resumeSummary || "Résumé analysed successfully.",
         education: result.parsedEducation || "",
-        careerLevel: result.careerLevel || "Student / entry-level candidate",
+        careerLevel: result.careerLevel || "Entry Level",
         source: result.source,
         warning: result.warning,
       };
 
       setResume(uploadedResume);
+      setSelectedFile(null);
+      setJustCompleted(true);
+      setView("profile");
       localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(uploadedResume));
-
       setCompanyRecommendations(null);
+      setSelectedTarget(null);
       localStorage.removeItem(COMPANY_RECOMMENDATION_STORAGE_KEY);
       localStorage.removeItem(SELECTED_INTERVIEW_TARGET_KEY);
-    } catch (error) {
-      console.error("Resume upload failed:", error);
-
-      setError(error instanceof Error ? error.message : "Resume upload failed. Please try again.");
-    } finally {
-      setUploading(false);
+    } catch (analysisError) {
+      console.error("Résumé analysis failed:", analysisError);
+      setError("We could not complete the résumé analysis. Try again or choose another document.");
+      setView("failure");
     }
   };
 
   const handleGenerateCompanyRecommendations = async () => {
-    if (!resume) {
-      setError("Please upload and analyze a resume first.");
-      return;
-    }
-
+    if (!resume) return;
     try {
       setError("");
       setRecommending(true);
-
       const result = await recommendCompanies({
         resumeSummary: resume.summary,
         resumeSkills: resume.skills,
@@ -201,15 +223,11 @@ function ResumePage() {
         recommendedCompanyTypes: resume.recommendedCompanyTypes,
         targetLocation: "Malaysia",
       });
-
       setCompanyRecommendations(result);
       localStorage.setItem(COMPANY_RECOMMENDATION_STORAGE_KEY, JSON.stringify(result));
-    } catch (error) {
-      console.error("Company recommendation failed:", error);
-
-      setError(
-        error instanceof Error ? error.message : "Company recommendation failed. Please try again.",
-      );
+    } catch (recommendationError) {
+      console.error("Company recommendation failed:", recommendationError);
+      setError("We could not prepare company recommendations. Please try again.");
     } finally {
       setRecommending(false);
     }
@@ -224,483 +242,565 @@ function ResumePage() {
     targetCompany?: string;
     companyType?: string;
   }) => {
-    const selectedTarget = {
+    const nextTarget = {
       targetRole: targetRole || "",
       targetCompany: targetCompany || "",
       companyType: companyType || "",
       selectedAt: new Date().toISOString(),
     };
+    localStorage.setItem(SELECTED_INTERVIEW_TARGET_KEY, JSON.stringify(nextTarget));
+    setSelectedTarget(nextTarget);
+    savePracticeDraft({
+      path: "personalized",
+      stage: "setup",
+      targetRole,
+      targetCompany,
+      companyType,
+    });
+    window.location.href = "/start";
+  };
 
-    localStorage.setItem(SELECTED_INTERVIEW_TARGET_KEY, JSON.stringify(selectedTarget));
-    setError("");
-
+  const continueToPersonalisedSetup = () => {
+    savePracticeDraft({ path: "personalized", stage: "setup" });
     window.location.href = "/start";
   };
 
   const handleDeleteResume = () => {
     setResume(null);
+    setSelectedFile(null);
     setCompanyRecommendations(null);
+    setSelectedTarget(null);
     setError("");
+    setJustCompleted(false);
+    setView("creation");
     localStorage.removeItem(RESUME_STORAGE_KEY);
     localStorage.removeItem(COMPANY_RECOMMENDATION_STORAGE_KEY);
     localStorage.removeItem(SELECTED_INTERVIEW_TARGET_KEY);
   };
 
+  const chooseAnotherFile = () => {
+    setError("");
+    fileInputRef.current?.click();
+  };
+
+  const returnAction =
+    from === "practice" ? (
+      <Button asChild variant="outline">
+        <Link to="/start">Return to Practice</Link>
+      </Button>
+    ) : from === "today" ? (
+      <Button asChild variant="outline">
+        <Link to="/dashboard">Return to Dashboard</Link>
+      </Button>
+    ) : undefined;
+
   return (
-    <main className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-background">
-      <div className="pointer-events-none absolute left-[-90px] top-[210px] h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-      <div className="pointer-events-none absolute right-[-110px] top-10 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-[-120px] left-[-120px] h-80 w-80 rounded-full bg-purple-200/30 blur-3xl" />
+    <main className="app-container profile-page">
+      <PageHeader
+        eyebrow="Professional Profile"
+        title={resume ? "Your professional story." : "Create your professional profile."}
+        description={
+          resume
+            ? "Review the evidence InterviewReady uses to personalise your questions, feedback and role recommendations."
+            : "Upload an English résumé so InterviewReady can understand your skills, education, projects and experience—and use them to personalise your preparation."
+        }
+        actions={returnAction}
+      />
 
-      <div className="pointer-events-none absolute left-0 top-56 hidden h-48 w-28 bg-[radial-gradient(circle,_hsl(var(--primary)/0.22)_1.5px,_transparent_1.5px)] [background-size:18px_18px] lg:block" />
-      <div className="pointer-events-none absolute bottom-24 right-8 hidden h-48 w-48 bg-[radial-gradient(circle,_hsl(var(--primary)/0.16)_1.5px,_transparent_1.5px)] [background-size:18px_18px] lg:block" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="sr-only"
+        aria-label="Choose an English résumé"
+        disabled={view === "processing"}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) validateAndSelectFile(file);
+          event.target.value = "";
+        }}
+      />
 
-      <div className="relative mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
-        <section className="mx-auto max-w-4xl text-center">
-          <div className="flex flex-col items-center justify-center gap-6 md:flex-row md:text-left">
-            <div className="grid h-24 w-24 shrink-0 place-items-center rounded-3xl bg-card/80 text-primary shadow-elegant ring-1 ring-border backdrop-blur">
-              <FileText className="h-12 w-12" />
-            </div>
-
-            <div>
-              <h1 className="font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-                Resume <span className="text-primary-gradient">Intelligence</span>
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-                Upload your resume and let InterviewReady AI understand your skills, projects,
-                education, strengths, weaknesses, and interview focus areas.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <FeaturePill icon={BarChart3} label="Resume Analysis" />
-            <FeaturePill icon={MessageSquareText} label="Personalized Questions" />
-            <FeaturePill icon={Crosshair} label="Role Matching" />
-          </div>
-        </section>
-
-        {error && (
-          <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          </div>
-        )}
-
-        <section className="mx-auto mt-8 max-w-3xl rounded-[2rem] border border-border bg-card/95 p-5 shadow-elegant backdrop-blur sm:p-7">
-          <div className="rounded-[1.5rem] border border-dashed border-border bg-background/50 px-6 py-10 text-center sm:px-10 sm:py-12">
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-primary/10 text-primary">
-              {uploading ? (
-                <RefreshCw className="h-10 w-10 animate-spin" />
-              ) : (
-                <Upload className="h-10 w-10" />
-              )}
-            </div>
-
-            <h2 className="mt-6 font-display text-2xl font-bold text-foreground">
-              {resume ? "Replace your resume" : "Upload your resume"}
-            </h2>
-
-            <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-              PDF or DOCX only. Maximum file size: 5MB.
-            </p>
-
-            <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-muted-foreground">
-              We securely analyze your resume to generate personalized interview questions and help
-              you practice smarter.
-            </p>
-
-            <label
-              className={`mt-7 inline-flex items-center justify-center rounded-xl bg-primary-gradient px-6 py-3 text-sm font-semibold text-primary-foreground shadow-elegant transition hover:opacity-90 ${
-                uploading ? "cursor-not-allowed opacity-70" : "cursor-pointer"
-              }`}
-            >
-              {uploading ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : resume ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Replace Resume
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload Resume
-                </>
-              )}
-
-              <input
-                type="file"
-                accept=".pdf,.docx"
-                className="hidden"
-                disabled={uploading}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-
-                  if (file) {
-                    void handleResumeUpload(file);
-                  }
-
-                  event.target.value = "";
-                }}
-              />
-            </label>
-          </div>
-        </section>
-
-        {resume ? (
-          <section className="mx-auto mt-5 max-w-3xl rounded-[1.75rem] border border-border bg-card/95 p-6 shadow-elegant backdrop-blur">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex gap-4">
-                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
-                  <FileText className="h-7 w-7" />
-                </span>
-
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Current resume
-                  </p>
-
-                  <h3 className="mt-1 font-display text-lg font-semibold text-foreground">
-                    {resume.fileName}
-                  </h3>
-
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {formatFileSize(resume.fileSize || 0)} · Uploaded{" "}
-                    {formatDate(resume.uploadedAt)}
-                  </p>
-                </div>
+      {view !== "profile" || !resume ? (
+        <ProfileCreation
+          view={view}
+          file={selectedFile}
+          error={error}
+          hasExistingProfile={Boolean(resume)}
+          onChooseFile={chooseAnotherFile}
+          onAnalyze={() => void handleAnalyzeResume()}
+          onRetry={() => void handleAnalyzeResume()}
+          onKeepExisting={() => setView(resume ? "profile" : "creation")}
+          from={from}
+        />
+      ) : (
+        <>
+          {justCompleted && (
+            <div className="profile-ready-notice" role="status" aria-live="polite">
+              <Check aria-hidden="true" />
+              <div>
+                <strong>Professional Profile ready</strong>
+                <p>Your résumé is ready to personalise your interview preparation.</p>
               </div>
+              <button type="button" onClick={() => setJustCompleted(false)}>
+                Dismiss
+              </button>
+            </div>
+          )}
 
-              <div className="flex flex-wrap gap-2">
+          <section className="profile-document app-panel" aria-labelledby="profile-document-title">
+            <div>
+              <p className="app-eyebrow">Source document</p>
+              <h2 id="profile-document-title">Current résumé</h2>
+              <p>This résumé personalises your questions, feedback and role recommendations.</p>
+            </div>
+            <div className="profile-document__details">
+              <FileText aria-hidden="true" />
+              <div>
+                <strong>{resume.fileName}</strong>
+                <span>
+                  {getFileKind(resume.fileName)} · {formatFileSize(resume.fileSize || 0)} · Analysed{" "}
+                  {formatDate(resume.uploadedAt)}
+                </span>
+              </div>
+              <span className="status-pill status-pill--success">Profile ready</span>
+            </div>
+            <div className="profile-document__actions">
+              {resume.fileUrl && (
                 <Button asChild size="sm" variant="outline">
                   <a href={resume.fileUrl} target="_blank" rel="noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Open file
+                    <ExternalLink aria-hidden="true" /> Open file
                   </a>
                 </Button>
+              )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    <RefreshCw aria-hidden="true" /> Replace résumé
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Replace the current résumé?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      A new document will rebuild your Professional Profile. Your previous interview
+                      sessions are not changed by this action.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep current résumé</AlertDialogCancel>
+                    <AlertDialogAction onClick={chooseAnotherFile}>
+                      Choose replacement
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 aria-hidden="true" /> Remove profile
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove this Professional Profile?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This removes the current profile from this browser. Your previous interview
+                      sessions remain available. Personalised Practice will require another analysed
+                      résumé.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteResume}>
+                      Remove profile
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </section>
 
+          {resume.warning && (
+            <div className="profile-warning" role="status">
+              <AlertCircle aria-hidden="true" />
+              <p>{resume.warning}</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="auth-form__error" role="alert">
+              {error}
+            </div>
+          )}
+
+          <ProfileSection number="01" title="Your professional story">
+            <div className="profile-story-grid">
+              <p className="profile-lead">{resume.summary || "Not identified from résumé"}</p>
+              <dl className="profile-facts">
+                <ProfileFact label="Current level" value={resume.careerLevel} />
+                <ProfileFact label="Education" value={resume.education} />
+                <ProfileFact label="Primary direction" value={resume.recommendedRoles[0]} />
+                <ProfileFact label="Core focus" value={resume.skills.slice(0, 4).join(", ")} />
+              </dl>
+            </div>
+          </ProfileSection>
+
+          <ProfileSection number="02" title="Evidence from your résumé">
+            <div className="profile-columns">
+              <ProfileGroup title="Skills and technologies">
+                <BadgeList items={resume.skills} emptyText="No skills were identified." />
+              </ProfileGroup>
+              <ProfileGroup title="Projects">
+                <EditorialList items={resume.projects} emptyText="No projects were identified." />
+              </ProfileGroup>
+              <ProfileGroup title="Experience">
+                <EditorialList
+                  items={resume.parsedExperience}
+                  emptyText="No experience was identified."
+                />
+              </ProfileGroup>
+              <ProfileGroup title="Education">
+                <p>{resume.education || "Not identified from résumé"}</p>
+              </ProfileGroup>
+            </div>
+          </ProfileSection>
+
+          <ProfileSection number="03" title="Interview readiness">
+            <div className="profile-columns">
+              <ProfileGroup title="Strong evidence">
+                <EditorialList
+                  items={resume.strongAreas}
+                  emptyText="No strong evidence was identified."
+                />
+              </ProfileGroup>
+              <ProfileGroup title="Preparation opportunities">
+                <EditorialList
+                  items={resume.weakAreas}
+                  emptyText="No preparation opportunities were identified."
+                />
+              </ProfileGroup>
+              <ProfileGroup title="Interview focus areas" wide>
+                <EditorialList
+                  items={resume.interviewFocusAreas}
+                  emptyText="No interview focus areas were identified."
+                />
+              </ProfileGroup>
+            </div>
+          </ProfileSection>
+
+          <ProfileSection number="04" title="Where this profile fits">
+            <div className="profile-fit-intro">
+              <div>
+                <ProfileGroup title="Recommended roles">
+                  <RecommendationChoices
+                    items={resume.recommendedRoles}
+                    actionLabel="Practise for this role"
+                    onSelect={(item) => handleUseRecommendation({ targetRole: item })}
+                  />
+                </ProfileGroup>
+                <ProfileGroup title="Recommended company environments">
+                  <BadgeList
+                    items={resume.recommendedCompanyTypes}
+                    emptyText="No company environments were identified."
+                  />
+                </ProfileGroup>
+              </div>
+              <div className="profile-recommendation-action">
+                <h3>Company recommendations</h3>
+                <p>Generate real company suggestions from the evidence in this profile.</p>
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDeleteResume}
-                  className="text-destructive hover:text-destructive"
+                  onClick={() => void handleGenerateCompanyRecommendations()}
+                  disabled={recommending}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Remove
+                  {recommending && <RefreshCw className="animate-spin" aria-hidden="true" />}
+                  {recommending
+                    ? "Preparing recommendations…"
+                    : companyRecommendations
+                      ? "Refresh recommendations"
+                      : "Generate recommendations"}
                 </Button>
               </div>
             </div>
 
-            {resume.warning && (
-              <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                <div className="flex gap-2">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{resume.warning}</span>
-                </div>
+            {companyRecommendations && (
+              <div className="profile-recommendations" aria-live="polite">
+                <ProfileGroup title="Role matches">
+                  {companyRecommendations.recommendedRoles.map((item) => (
+                    <RecommendationRow
+                      key={item.role}
+                      title={item.role}
+                      description={item.reason}
+                      meta={`${item.matchScore}% match`}
+                      action="Use role"
+                      onClick={() => handleUseRecommendation({ targetRole: item.role })}
+                    />
+                  ))}
+                </ProfileGroup>
+                <ProfileGroup title="Suggested companies">
+                  {companyRecommendations.suggestedCompanies.map((company) => (
+                    <RecommendationRow
+                      key={`${company.name}-${company.type}`}
+                      title={company.name}
+                      description={company.reason}
+                      meta={`${company.type} · ${company.matchScore}% match`}
+                      action="Use company"
+                      onClick={() =>
+                        handleUseRecommendation({
+                          targetCompany: company.name,
+                          companyType: company.type,
+                        })
+                      }
+                    />
+                  ))}
+                </ProfileGroup>
+                <ProfileGroup title="Interview focus" wide>
+                  <EditorialList
+                    items={companyRecommendations.interviewFocusAreas}
+                    emptyText="No additional interview focus areas were generated."
+                  />
+                  <div className="mt-5">
+                    <BadgeList
+                      items={companyRecommendations.recommendedCompanyTypes}
+                      emptyText="No additional company environments were generated."
+                    />
+                  </div>
+                  {companyRecommendations.warning && (
+                    <p className="profile-empty-value">{companyRecommendations.warning}</p>
+                  )}
+                </ProfileGroup>
               </div>
             )}
+          </ProfileSection>
 
-            <div className="mt-5 rounded-2xl border border-border bg-background/70 p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Resume summary
-              </p>
-
-              <p className="mt-2 text-sm leading-relaxed text-foreground">{resume.summary}</p>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {resume.education && (
-                  <InfoLine label="Education" value={resume.education} icon={GraduationCap} />
-                )}
-
-                {resume.careerLevel && (
-                  <InfoLine label="Career level" value={resume.careerLevel} icon={Target} />
-                )}
-              </div>
-            </div>
-          </section>
-        ) : (
-          <section className="mx-auto mt-5 max-w-3xl rounded-[1.75rem] border border-border bg-card/95 p-6 shadow-elegant backdrop-blur">
-            <div className="flex items-center gap-4">
-              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                <Folder className="h-7 w-7" />
-              </span>
-
+          <section className="profile-practice app-panel">
+            <p className="app-eyebrow">Next step</p>
+            <h2>Your profile is ready for practice.</h2>
+            <p>
+              InterviewReady can now create questions from your skills, projects, experience and
+              preparation opportunities.
+            </p>
+            <dl className="profile-selected-target">
               <div>
-                <h3 className="font-display text-base font-semibold text-foreground">
-                  No resume uploaded yet.
-                </h3>
-
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Upload a resume to unlock personalized interview questions and feedback.
-                </p>
+                <dt>Professional Profile</dt>
+                <dd>Ready</dd>
               </div>
-            </div>
-          </section>
-        )}
-
-        {resume && (
-          <section className="mt-8 rounded-[2rem] border border-border bg-card/95 p-6 shadow-elegant backdrop-blur">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="font-display text-xl font-semibold">AI company recommendation</h2>
-
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Generate suitable roles, company types, and target companies based on your resume
-                  analysis.
-                </p>
+                <dt>Target role</dt>
+                <dd>{selectedTarget?.targetRole || "Choose during setup"}</dd>
               </div>
-
-              <Button
-                onClick={handleGenerateCompanyRecommendations}
-                disabled={recommending}
-                className="bg-primary-gradient text-primary-foreground shadow-elegant hover:opacity-90"
-              >
-                {recommending ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Recommendations
-                  </>
-                )}
+              <div>
+                <dt>Target company</dt>
+                <dd>{selectedTarget?.targetCompany || "Optional"}</dd>
+              </div>
+            </dl>
+            <div>
+              <Button size="lg" onClick={continueToPersonalisedSetup}>
+                Start Personalised Practice <ArrowRight aria-hidden="true" />
               </Button>
+              {from === "today" && (
+                <Button asChild size="lg" variant="outline">
+                  <Link to="/dashboard">Return to Dashboard</Link>
+                </Button>
+              )}
             </div>
-
-            {companyRecommendations?.warning && (
-              <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                {companyRecommendations.warning}
-              </div>
-            )}
           </section>
-        )}
-
-        {resume && (
-          <section className="mt-8 grid gap-6 lg:grid-cols-3">
-            <PreviewPanel title="Skills detected">
-              <BadgeList
-                items={resume.skills}
-                emptyText="No skills detected yet. Try uploading a clearer resume."
-              />
-            </PreviewPanel>
-
-            <PreviewPanel title="Projects detected">
-              <BulletList
-                items={resume.projects}
-                emptyText="No projects detected yet. Add project names and descriptions to your resume."
-              />
-            </PreviewPanel>
-
-            <PreviewPanel title="Recommended roles">
-              <BulletList items={resume.recommendedRoles} emptyText="No recommended roles yet." />
-            </PreviewPanel>
-
-            <PreviewPanel title="Recommended company types">
-              <BulletList
-                items={resume.recommendedCompanyTypes}
-                emptyText="No company type recommendations yet."
-              />
-            </PreviewPanel>
-
-            <PreviewPanel title="Strong areas">
-              <BulletList items={resume.strongAreas} emptyText="No strong areas detected yet." />
-            </PreviewPanel>
-
-            <PreviewPanel title="Weak areas to improve">
-              <BulletList items={resume.weakAreas} emptyText="No weak areas detected yet." />
-            </PreviewPanel>
-
-            <PreviewPanel title="Experience detected">
-              <BulletList items={resume.parsedExperience} emptyText="No experience detected yet." />
-            </PreviewPanel>
-
-            <PreviewPanel title="Interview focus areas">
-              <BulletList
-                items={resume.interviewFocusAreas}
-                emptyText="No interview focus areas yet."
-              />
-            </PreviewPanel>
-
-            <PreviewPanel title="Analysis status">
-              <div className="space-y-2 text-sm">
-                <p>
-                  <span className="font-medium text-foreground">Source:</span>{" "}
-                  <span className="text-muted-foreground">
-                    {resume.source === "local-fallback"
-                      ? "Local fallback"
-                      : resume.source === "ai"
-                        ? "AI analysis"
-                        : "Resume analysis"}
-                  </span>
-                </p>
-
-                <p className="text-muted-foreground">
-                  This data will be used to generate personalized interview questions.
-                </p>
-              </div>
-            </PreviewPanel>
-          </section>
-        )}
-
-        {companyRecommendations && (
-          <section className="mt-8 grid gap-6 lg:grid-cols-3">
-            <PreviewPanel title="Role match">
-              <ul className="space-y-4 text-sm">
-                {companyRecommendations.recommendedRoles.map((item) => (
-                  <li
-                    key={item.role}
-                    className="rounded-2xl border border-border bg-background p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{item.role}</p>
-                        <p className="mt-1 text-muted-foreground">{item.reason}</p>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-3"
-                          onClick={() =>
-                            handleUseRecommendation({
-                              targetRole: item.role,
-                            })
-                          }
-                        >
-                          Use this role
-                        </Button>
-                      </div>
-
-                      <Badge variant="secondary">{item.matchScore}%</Badge>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </PreviewPanel>
-
-            <PreviewPanel title="Suggested companies">
-              <ul className="space-y-4 text-sm">
-                {companyRecommendations.suggestedCompanies.map((company) => (
-                  <li
-                    key={`${company.name}-${company.type}`}
-                    className="rounded-2xl border border-border bg-background p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{company.name}</p>
-                        <p className="text-xs text-muted-foreground">{company.type}</p>
-                        <p className="mt-2 text-muted-foreground">{company.reason}</p>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-3"
-                          onClick={() =>
-                            handleUseRecommendation({
-                              targetCompany: company.name,
-                              companyType: company.type,
-                            })
-                          }
-                        >
-                          Use this company
-                        </Button>
-                      </div>
-
-                      <Badge variant="secondary">{company.matchScore}%</Badge>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </PreviewPanel>
-
-            <PreviewPanel title="Interview focus">
-              <BulletList
-                items={companyRecommendations.interviewFocusAreas}
-                emptyText="No interview focus areas generated yet."
-              />
-
-              <div className="mt-5">
-                <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-                  Company types
-                </p>
-
-                <BadgeList
-                  items={companyRecommendations.recommendedCompanyTypes}
-                  emptyText="No company types generated yet."
-                />
-              </div>
-            </PreviewPanel>
-          </section>
-        )}
-
-        <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
-          <Button
-            asChild
-            size="lg"
-            className="bg-primary-gradient text-primary-foreground shadow-elegant hover:opacity-90"
-          >
-            <Link to="/start">Start Interview</Link>
-          </Button>
-
-          <Button asChild size="lg" variant="outline">
-            <Link to="/dashboard">Back to Dashboard</Link>
-          </Button>
-        </div>
-      </div>
+        </>
+      )}
     </main>
   );
 }
 
-function FeaturePill({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+function ProfileCreation({
+  view,
+  file,
+  error,
+  hasExistingProfile,
+  onChooseFile,
+  onAnalyze,
+  onRetry,
+  onKeepExisting,
+  from,
+}: {
+  view: ProfileView;
+  file: File | null;
+  error: string;
+  hasExistingProfile: boolean;
+  onChooseFile: () => void;
+  onAnalyze: () => void;
+  onRetry: () => void;
+  onKeepExisting: () => void;
+  from?: ProfileSource;
+}) {
+  if (view === "processing") {
+    return (
+      <section className="profile-processing app-panel" role="status" aria-live="polite">
+        <span className="app-state__loader" aria-hidden="true" />
+        <p className="app-eyebrow">Résumé analysis</p>
+        <h2>Building your Professional Profile</h2>
+        <p>
+          InterviewReady is uploading and organising your résumé into evidence that can personalise
+          your questions and feedback.
+        </p>
+        <small>Please keep this page open while the analysis completes.</small>
+      </section>
+    );
+  }
+
+  if (view === "failure") {
+    return (
+      <section className="profile-failure app-panel" aria-labelledby="profile-failure-title">
+        <AlertCircle aria-hidden="true" />
+        <p className="app-eyebrow">Analysis interrupted</p>
+        <h2 id="profile-failure-title">We could not complete the résumé analysis.</h2>
+        <p role="alert">{error}</p>
+        <div>
+          {file && <Button onClick={onRetry}>Try analysis again</Button>}
+          <Button variant="outline" onClick={onChooseFile}>
+            Upload another résumé
+          </Button>
+          {hasExistingProfile && (
+            <Button variant="ghost" onClick={onKeepExisting}>
+              Keep current profile
+            </Button>
+          )}
+          {from === "practice" && (
+            <Button asChild variant="ghost">
+              <Link to="/start">Return to Practice</Link>
+            </Button>
+          )}
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-5 py-3 text-sm font-medium text-primary shadow-sm ring-1 ring-primary/10">
-      <Icon className="h-4 w-4" />
-      {label}
-    </span>
+    <section className="profile-creation">
+      <div className="profile-creation__explanation">
+        <p className="app-eyebrow">Résumé to profile</p>
+        <h2>The document is the source. The profile makes it useful.</h2>
+        <p>
+          InterviewReady identifies only evidence available in your résumé and organises it for
+          personalised preparation.
+        </p>
+        <ul>
+          {[
+            "Career identity",
+            "Education and experience",
+            "Skills and technologies",
+            "Projects and achievements",
+            "Interview strengths",
+            "Preparation opportunities",
+            "Suitable roles and environments",
+          ].map((item) => (
+            <li key={item}>
+              <Check aria-hidden="true" /> {item}
+            </li>
+          ))}
+        </ul>
+        <small>
+          Your résumé is stored with your authenticated account and used to build your preparation
+          context.
+        </small>
+      </div>
+
+      <div className="profile-upload-panel app-panel">
+        {view === "selected" && file ? (
+          <>
+            <span className="status-pill status-pill--success">Ready to analyse</span>
+            <FileText className="profile-upload-panel__icon" aria-hidden="true" />
+            <h2>{file.name}</h2>
+            <dl>
+              <div>
+                <dt>File type</dt>
+                <dd>{getFileKind(file.name)}</dd>
+              </div>
+              <div>
+                <dt>File size</dt>
+                <dd>{formatFileSize(file.size)}</dd>
+              </div>
+              <div>
+                <dt>Validation</dt>
+                <dd>PDF/DOCX and size checks passed</dd>
+              </div>
+            </dl>
+            <Button size="lg" onClick={onAnalyze}>
+              Analyse résumé
+            </Button>
+            <Button variant="outline" onClick={onChooseFile}>
+              Choose another file
+            </Button>
+          </>
+        ) : (
+          <>
+            <Upload className="profile-upload-panel__icon" aria-hidden="true" />
+            <h2>Choose your English résumé</h2>
+            <p>PDF or DOCX · Maximum 5 MB</p>
+            <Button size="lg" onClick={onChooseFile}>
+              Select document
+            </Button>
+            <small>Analysis starts only after you confirm the selected document.</small>
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
-function formatFileSize(bytes: number) {
-  if (!bytes) return "Unknown size";
-
-  const mb = bytes / (1024 * 1024);
-
-  if (mb >= 1) {
-    return `${mb.toFixed(2)} MB`;
-  }
-
-  return `${Math.round(bytes / 1024)} KB`;
+function ProfileSection({
+  number,
+  title,
+  children,
+}: {
+  number: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="profile-section" aria-labelledby={`profile-section-${number}`}>
+      <header>
+        <span>{number}</span>
+        <h2 id={`profile-section-${number}`}>{title}</h2>
+      </header>
+      <div>{children}</div>
+    </section>
+  );
 }
 
-function formatDate(value: string) {
-  const date = new Date(value);
+function ProfileGroup({
+  title,
+  children,
+  wide = false,
+}: {
+  title: string;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div className={wide ? "profile-group profile-group--wide" : "profile-group"}>
+      <h3>{title}</h3>
+      <div>{children}</div>
+    </div>
+  );
+}
 
-  if (Number.isNaN(date.getTime())) {
-    return "recently";
-  }
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function ProfileFact({ label, value }: { label: string; value?: string }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value || "Not identified from résumé"}</dd>
+    </div>
+  );
 }
 
 function BadgeList({ items, emptyText }: { items: string[]; emptyText: string }) {
-  if (!items.length) {
-    return <p className="text-sm text-muted-foreground">{emptyText}</p>;
-  }
-
+  if (!items.length) return <p className="profile-empty-value">{emptyText}</p>;
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="profile-badges">
       {items.map((item) => (
         <Badge key={item} variant="secondary">
           {item}
@@ -710,49 +810,78 @@ function BadgeList({ items, emptyText }: { items: string[]; emptyText: string })
   );
 }
 
-function BulletList({ items, emptyText }: { items: string[]; emptyText: string }) {
-  if (!items.length) {
-    return <p className="text-sm text-muted-foreground">{emptyText}</p>;
-  }
-
+function EditorialList({ items, emptyText }: { items: string[]; emptyText: string }) {
+  if (!items.length) return <p className="profile-empty-value">{emptyText}</p>;
   return (
-    <ul className="space-y-2 text-sm">
+    <ul className="profile-list">
       {items.map((item) => (
-        <li key={item} className="flex gap-2">
-          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-          <span>{item}</span>
-        </li>
+        <li key={item}>{item}</li>
       ))}
     </ul>
   );
 }
 
-function PreviewPanel({ title, children }: { title: string; children: ReactNode }) {
+function RecommendationChoices({
+  items,
+  actionLabel,
+  onSelect,
+}: {
+  items: string[];
+  actionLabel: string;
+  onSelect: (item: string) => void;
+}) {
+  if (!items.length) return <p className="profile-empty-value">No roles were identified.</p>;
   return (
-    <div className="rounded-3xl border border-border bg-card p-6 shadow-elegant">
-      <h3 className="font-display text-lg font-semibold">{title}</h3>
-      <div className="mt-4">{children}</div>
+    <div className="profile-choices">
+      {items.map((item) => (
+        <button type="button" key={item} onClick={() => onSelect(item)}>
+          <span>{item}</span>
+          <strong>{actionLabel}</strong>
+        </button>
+      ))}
     </div>
   );
 }
 
-function InfoLine({
-  label,
-  value,
-  icon: Icon,
+function RecommendationRow({
+  title,
+  description,
+  meta,
+  action,
+  onClick,
 }: {
-  label: string;
-  value: string;
-  icon: LucideIcon;
+  title: string;
+  description: string;
+  meta: string;
+  action: string;
+  onClick: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-background/70 p-3">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-        <Icon className="h-3.5 w-3.5 text-primary" />
-        {label}
+    <article className="profile-recommendation-row">
+      <div>
+        <strong>{title}</strong>
+        <span>{meta}</span>
+        <p>{description}</p>
       </div>
-
-      <p className="mt-1 text-sm font-medium">{value}</p>
-    </div>
+      <Button size="sm" variant="outline" onClick={onClick}>
+        {action}
+      </Button>
+    </article>
   );
+}
+
+function getFileKind(fileName: string) {
+  return fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX";
+}
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return "Unknown size";
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(2)} MB` : `${Math.round(bytes / 1024)} KB`;
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "recently";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }

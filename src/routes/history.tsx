@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/app/EmptyState";
+import { PageHeader } from "@/components/app/PageHeader";
 import { RequireAuth } from "@/components/RequireAuth";
 import { SessionHistoryCard } from "@/components/SessionHistoryCard";
 import { Button } from "@/components/ui/button";
@@ -13,16 +14,8 @@ import type { SessionSummary } from "@/lib/types";
 export const Route = createFileRoute("/history")({
   head: () => ({
     meta: [
-      { title: "Practice History — InterviewReady AI" },
-      {
-        name: "description",
-        content: "Browse your past interview practice sessions, scores, and reports.",
-      },
-      { property: "og:title", content: "Practice History" },
-      {
-        property: "og:description",
-        content: "Review every interview practice session.",
-      },
+      { title: "Preparation Journal — InterviewReady" },
+      { name: "description", content: "Review your saved interview sessions and progress." },
     ],
   }),
   component: () => (
@@ -34,86 +27,156 @@ export const Route = createFileRoute("/history")({
 
 function HistoryPage() {
   const { user } = useAuth();
-
   const [history, setHistory] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [modeFilter, setModeFilter] = useState("all");
 
   useEffect(() => {
     if (!user) return;
-
     const loadHistory = async () => {
       try {
         setLoading(true);
         setError("");
-
         const sessions = await getUserInterviewSessions(user.uid);
-
-        const mappedHistory = sessions
-          .filter((session) => session.status === "completed")
-          .map((session) => mapSupabaseSessionToSummary(session));
-
-        setHistory(mappedHistory);
-      } catch (error) {
-        console.error("Failed to load history:", error);
-        setError("Could not load your practice history from Supabase.");
+        setHistory(
+          sessions
+            .filter((session) => session.status !== "cancelled")
+            .map(mapSupabaseSessionToSummary),
+        );
+      } catch (loadError) {
+        console.error("Failed to load history:", loadError);
+        setError("We could not load your practice history. Please refresh and try again.");
       } finally {
         setLoading(false);
       }
     };
-
-    loadHistory();
+    void loadHistory();
   }, [user]);
 
+  const modes = useMemo(
+    () => Array.from(new Set(history.map((session) => String(session.mode || "Text")))),
+    [history],
+  );
+  const filtered = history.filter((session) => {
+    const status = session.score > 0 ? "completed" : "in-progress";
+    return (
+      (statusFilter === "all" || statusFilter === status) &&
+      (modeFilter === "all" || modeFilter === String(session.mode || "Text"))
+    );
+  });
+  const scored = history.filter((session) => session.score > 0);
+  const average = scored.length
+    ? Math.round(scored.reduce((sum, session) => sum + session.score, 0) / scored.length)
+    : 0;
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="font-display text-3xl font-bold sm:text-4xl">Practice history</h1>
-
-          <p className="mt-1 text-muted-foreground">
-            All your saved interview sessions from Supabase.
-          </p>
-        </div>
-
-        <Button
-          asChild
-          className="bg-primary-gradient text-primary-foreground shadow-elegant hover:opacity-90"
-        >
-          <Link to="/start">
-            <Plus className="mr-2 h-4 w-4" />
-            New session
-          </Link>
-        </Button>
-      </div>
-
+    <div className="app-container">
+      <PageHeader
+        eyebrow="Journal"
+        title="Preparation Journal"
+        description="Review completed and active sessions, compare real outcomes and return to the feedback that shapes your next practice."
+        actions={
+          <Button asChild size="lg">
+            <Link to="/start">New session</Link>
+          </Button>
+        }
+      />
       {error && (
-        <div className="mt-6 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="auth-form__error" role="alert">
           {error}
         </div>
       )}
-
-      {loading ? (
-        <div className="mt-8 rounded-3xl border border-border bg-card p-8 text-center">
-          <p className="text-muted-foreground">Loading your saved sessions...</p>
+      <section className="app-section">
+        <div className="app-metrics">
+          <div className="app-metric">
+            <div className="app-metric__label">All sessions</div>
+            <div className="app-metric__value">{loading ? "…" : history.length}</div>
+            <div className="app-metric__hint">Saved preparation</div>
+          </div>
+          <div className="app-metric">
+            <div className="app-metric__label">Completed</div>
+            <div className="app-metric__value">{loading ? "…" : scored.length}</div>
+            <div className="app-metric__hint">With a scored report</div>
+          </div>
+          <div className="app-metric">
+            <div className="app-metric__label">Average score</div>
+            <div className="app-metric__value">
+              {loading ? "…" : scored.length ? `${average}%` : "—"}
+            </div>
+            <div className="app-metric__hint">Shown when scored sessions exist</div>
+          </div>
+          <div className="app-metric">
+            <div className="app-metric__label">Progress trend</div>
+            <div className="app-metric__value">
+              {scored.length >= 2 ? `${scored.at(0)?.score || 0}%` : "—"}
+            </div>
+            <div className="app-metric__hint">
+              {scored.length >= 2 ? "Latest scored session" : "Complete two sessions to compare"}
+            </div>
+          </div>
         </div>
-      ) : history.length === 0 ? (
-        <div className="mt-12 rounded-3xl border border-dashed border-border bg-card p-12 text-center">
-          <p className="text-muted-foreground">
-            No sessions yet. Start your first practice to see it here.
-          </p>
-
-          <Button asChild className="mt-4">
-            <Link to="/start">Start your first interview</Link>
-          </Button>
+      </section>
+      <section className="app-section">
+        <div className="app-section-heading">
+          <div>
+            <h2>Sessions</h2>
+            <p>Filter by real status and practice mode.</p>
+          </div>
+          <div className="history-filters">
+            <label>
+              Status
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="all">All statuses</option>
+                <option value="completed">Completed</option>
+                <option value="in-progress">In progress</option>
+              </select>
+            </label>
+            <label>
+              Mode
+              <select value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}>
+                <option value="all">All modes</option>
+                {modes.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
-      ) : (
-        <div className="mt-8 space-y-3">
-          {history.map((session) => (
-            <SessionHistoryCard key={session.id} session={session} />
-          ))}
-        </div>
-      )}
+        {loading ? (
+          <div className="app-state" role="status">
+            Loading your saved sessions…
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title="No sessions match these filters"
+            description={
+              history.length
+                ? "Try a different status or practice mode."
+                : "Start your first practice to build a preparation history."
+            }
+            action={
+              !history.length ? (
+                <Button asChild>
+                  <Link to="/start">Start your first interview</Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <div className="app-panel overflow-hidden">
+            {filtered.map((session) => (
+              <SessionHistoryCard key={session.id} session={session} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

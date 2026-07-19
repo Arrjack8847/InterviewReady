@@ -1,4 +1,8 @@
 import { requireSupabaseConfig, supabase } from "@/lib/supabase";
+import {
+  normalizeExperienceLevel,
+  normalizeInterviewType,
+} from "@/lib/types";
 import type {
   Feedback,
   FinalReport,
@@ -7,9 +11,11 @@ import type {
   SpeechMetrics,
   VisualMetrics,
 } from "@/lib/types";
+import type { PersistedAnswerMetrics } from "@/features/interview/scoring/scoringTypes";
+import { readPersistedAnswerMetrics } from "@/features/interview/scoring/answerMetricCompatibility";
 
 type SupabaseInterviewMode = "text" | "voice" | "video";
-type InterviewSessionStatus = "in-progress" | "completed" | "cancelled";
+type InterviewSessionStatus = "pending" | "in_progress" | "completed" | "cancelled" | "failed";
 type StoredQuestion = Question & Record<string, unknown>;
 
 type ExtendedInterviewSetup = Omit<InterviewSetup, "mode"> & {
@@ -32,7 +38,10 @@ export interface SavedAnswerInput {
   question: Question;
   answer: string;
   feedback: Feedback;
+  answerMetrics?: PersistedAnswerMetrics;
 }
+
+export type SavedAnswerDraftInput = Omit<SavedAnswerInput, "feedback">;
 
 export interface SavedSpeechMetricsInput {
   sessionId: string;
@@ -118,7 +127,7 @@ interface AnswerRow {
   question_text: string;
   answer_text: string;
   feedback: Feedback | null;
-  scores: Record<string, number> | null;
+  scores: Record<string, unknown> | null;
   strengths: string[] | null;
   weaknesses: string[] | null;
   improved_answer: string | null;
@@ -127,12 +136,35 @@ interface AnswerRow {
   created_at: string;
 }
 
-interface MetricsRow<TMetrics> {
+interface VisualMetricsRow {
   id: string;
   session_id: string;
   user_id: string;
-  metrics: TMetrics;
+  camera_presence_score: number | null;
+  face_visibility_score: number | null;
+  face_centering_score: number | null;
+  hand_visibility_score: number | null;
+  movement_stability_score: number | null;
+  overall_presentation_score: number | null;
+  analysis_duration_ms: number | null;
+  frame_count: number | null;
+  face_detected_frames: number | null;
+  face_centered_frames: number | null;
+  hand_detected_frames: number | null;
+  stable_frames: number | null;
+  visual_summary: string[] | null;
+  raw_metrics: Record<string, unknown> | null;
   created_at: string;
+  updated_at: string | null;
+}
+
+interface SpeechMetricsRow {
+  id: string;
+  session_id: string;
+  user_id: string;
+  metrics: SpeechMetrics;
+  created_at: string;
+  updated_at: string | null;
 }
 
 function normalizeInterviewMode(
@@ -150,6 +182,94 @@ function toNullableUuid(value?: string) {
   return value && value.trim() ? value : null;
 }
 
+function toFiniteNumber(value: unknown, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+}
+
+function normalizeQuestionNumber(questionId: unknown): number {
+  if (typeof questionId === "number" && Number.isInteger(questionId) && questionId > 0) {
+    return questionId;
+  }
+
+  const match = String(questionId ?? "").match(/(\d+)(?!.*\d)/);
+  const parsed = match ? Number(match[1]) : Number.NaN;
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid question id "${String(questionId)}". Expected a positive number.`);
+  }
+
+  return parsed;
+}
+
+function normalizeFeedbackForStorage(feedback: Feedback) {
+  const value = feedback as Feedback & Record<string, unknown>;
+
+  const overall = toFiniteNumber(value.overallScore ?? value.overall);
+  const clarity = toFiniteNumber(value.clarityScore ?? value.clarity);
+  const relevance = toFiniteNumber(value.relevanceScore ?? value.relevance);
+  const structure = toFiniteNumber(value.structureScore ?? value.structure);
+  const technicalAccuracy = toFiniteNumber(
+    value.technicalScore ?? value.technicalAccuracyScore ?? value.technicalAccuracy,
+  );
+  const content = toFiniteNumber(value.contentScore ?? technicalAccuracy);
+  const professionalism = toFiniteNumber(value.professionalismScore);
+
+  const strengths = toStringArray(value.strengths);
+  const weaknesses = toStringArray(value.improvements ?? value.weaknesses);
+  const improvedAnswer = String(value.improvedAnswer ?? "");
+  const summary = String(value.summary ?? "");
+  const interviewTip = String(value.interviewTip ?? "");
+  const scoreScale = value.scoreScale === "ten" ? 10 : 100;
+
+  return {
+    canonicalFeedback: {
+      ...value,
+      overallScore: overall,
+      clarityScore: clarity,
+      relevanceScore: relevance,
+      structureScore: structure,
+      technicalScore: technicalAccuracy,
+      contentScore: content,
+      professionalismScore: professionalism,
+      strengths,
+      improvements: weaknesses,
+      improvedAnswer,
+      summary,
+      interviewTip,
+      scoreScale: scoreScale === 100 ? "hundred" : "ten",
+    },
+    scores: {
+      overall,
+      clarity,
+      relevance,
+      structure,
+      technicalAccuracy,
+      content,
+      professionalism,
+      answerValidity: value.answerValidity,
+      questionType: value.questionType,
+      relevanceClassification: value.relevanceClassification,
+      scoreLabel: value.scoreLabel,
+      requiresReview: Boolean(value.requiresReview),
+      reviewReasons: toStringArray(value.reviewReasons),
+      evaluationVersion: String(value.evaluationVersion ?? ""),
+      scoreScale,
+    },
+    strengths,
+    weaknesses,
+    improvedAnswer,
+    summary,
+    interviewTip,
+  };
+}
+
 function mapProfile(row: ProfileRow): UserProfile {
   return {
     id: row.id,
@@ -161,24 +281,31 @@ function mapProfile(row: ProfileRow): UserProfile {
 }
 
 function mapSession(row: InterviewSessionRow) {
+  const resolvedRole = row.target_role?.trim() || row.role?.trim() || "";
+  const interviewType = normalizeInterviewType(
+    row.interview_type || row.type,
+  );
+
   return {
     id: row.id,
     userId: row.user_id,
     resumeId: row.resume_id || "",
-    role: row.role,
-    targetRole: row.target_role,
+    role: resolvedRole,
+    targetRole: resolvedRole,
     targetCompany: row.target_company,
     jobDescription: row.job_description,
-    type: row.type,
-    interviewType: row.interview_type,
-    difficulty: row.difficulty,
+    type: interviewType,
+    interviewType,
+    difficulty: normalizeExperienceLevel(
+      row.difficulty,
+    ),
     mode: row.mode,
     questionCount: row.question_count,
     status: row.status,
     overallScore: row.overall_score,
     finalReport: row.final_report,
     generatedQuestions: row.generated_questions || [],
-    currentQuestionIndex: row.current_question_index || 0,
+    currentQuestionIndex: row.current_question_index ?? 0,
     attemptId: row.attempt_id || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at || "",
@@ -188,6 +315,11 @@ function mapSession(row: InterviewSessionRow) {
 }
 
 function mapAnswer(row: AnswerRow) {
+  const storedFeedback = row.feedback as (Feedback & { evaluationStatus?: string }) | null;
+  const answerMetrics = readPersistedAnswerMetrics(
+    storedFeedback?.answerMetrics,
+    row.scores?.answerMetrics,
+  );
   return {
     id: row.id,
     sessionId: row.session_id,
@@ -195,7 +327,11 @@ function mapAnswer(row: AnswerRow) {
     questionId: row.question_id,
     questionText: row.question_text,
     answerText: row.answer_text,
-    feedback: row.feedback,
+    feedback: storedFeedback
+      ? { ...storedFeedback, ...(answerMetrics ? { answerMetrics } : {}) }
+      : null,
+    answerMetrics,
+    evaluationStatus: storedFeedback?.evaluationStatus === "pending" ? "pending" : "completed",
     scores: row.scores,
     strengths: row.strengths || [],
     weaknesses: row.weaknesses || [],
@@ -206,19 +342,41 @@ function mapAnswer(row: AnswerRow) {
   };
 }
 
-function mapMetrics<TMetrics>(row: MetricsRow<TMetrics>) {
+function mapVisualMetrics(row: VisualMetricsRow) {
+  const raw = row.raw_metrics || {};
+
   return {
     id: row.id,
     sessionId: row.session_id,
     userId: row.user_id,
-    metrics: row.metrics,
+    metrics: {
+      ...raw,
+      cameraPresenceScore: toFiniteNumber(row.camera_presence_score),
+      faceVisibilityScore: toFiniteNumber(row.face_visibility_score),
+      faceCenteringScore: toFiniteNumber(row.face_centering_score),
+      handVisibilityScore: toFiniteNumber(row.hand_visibility_score),
+      movementStabilityScore: toFiniteNumber(row.movement_stability_score),
+      overallPresentationScore: toFiniteNumber(row.overall_presentation_score),
+      analysisDurationMs: toFiniteNumber(row.analysis_duration_ms),
+      frameCount: toFiniteNumber(row.frame_count),
+      faceDetectedFrames: toFiniteNumber(row.face_detected_frames),
+      faceCenteredFrames: toFiniteNumber(row.face_centered_frames),
+      handDetectedFrames: toFiniteNumber(row.hand_detected_frames),
+      stableFrames: toFiniteNumber(row.stable_frames),
+      visualSummary: row.visual_summary || [],
+    } as VisualMetrics,
     createdAt: row.created_at,
+    updatedAt: row.updated_at || "",
   };
 }
 
 function throwIfSupabaseError(error: unknown, fallback: string): never {
   if (error instanceof Error) {
     throw error;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    throw new Error(String((error as { message?: unknown }).message || fallback));
   }
 
   throw new Error(fallback);
@@ -240,7 +398,6 @@ export async function createUserProfile({
       id: userId,
       name,
       email,
-      updated_at: new Date().toISOString(),
     },
     { onConflict: "id" },
   );
@@ -263,7 +420,7 @@ export async function getUserProfile(userId: string) {
     throwIfSupabaseError(error, "Could not load your profile.");
   }
 
-  return data ? mapProfile(data) : null;
+  return data ? mapProfile(data as ProfileRow) : null;
 }
 
 export async function createResumeRecord({
@@ -336,22 +493,25 @@ export async function createInterviewSession({
   requireSupabaseConfig();
 
   const now = new Date().toISOString();
+  const targetRole = (setup.targetRole || setup.role || "").trim();
+  const interviewType = normalizeInterviewType(setup.type);
+  const experienceLevel = normalizeExperienceLevel(setup.difficulty);
 
   const { data, error } = await supabase
     .from("interview_sessions")
     .insert({
       user_id: userId,
       resume_id: toNullableUuid(setup.resumeId),
-      role: setup.role,
-      target_role: setup.targetRole || setup.role || "",
+      role: targetRole,
+      target_role: targetRole,
       target_company: setup.targetCompany || "",
       job_description: setup.jobDescription || "",
-      type: setup.type,
-      interview_type: setup.type,
-      difficulty: setup.difficulty,
+      type: interviewType,
+      interview_type: interviewType,
+      difficulty: experienceLevel,
       mode: normalizeInterviewMode(setup.mode),
       question_count: setup.questionCount,
-      status: "in-progress",
+      status: "in_progress",
       overall_score: null,
       final_report: null,
       generated_questions: null,
@@ -386,7 +546,6 @@ export async function updateInterviewSessionQuestions({
     .from("interview_sessions")
     .update({
       generated_questions: questions,
-      updated_at: new Date().toISOString(),
     })
     .eq("id", sessionId)
     .eq("user_id", userId);
@@ -411,8 +570,7 @@ export async function updateInterviewSessionProgress({
     .from("interview_sessions")
     .update({
       current_question_index: currentQuestionIndex,
-      status: "in-progress",
-      updated_at: new Date().toISOString(),
+      status: "in_progress",
     })
     .eq("id", sessionId)
     .eq("user_id", userId);
@@ -428,8 +586,12 @@ export async function saveInterviewAnswer({
   question,
   answer,
   feedback,
+  answerMetrics,
 }: SavedAnswerInput) {
   requireSupabaseConfig();
+
+  const normalized = normalizeFeedbackForStorage(feedback);
+  const questionNumber = normalizeQuestionNumber(question.id);
 
   const { data, error } = await supabase
     .from("answers")
@@ -437,22 +599,23 @@ export async function saveInterviewAnswer({
       {
         session_id: sessionId,
         user_id: userId,
-        question_id: question.id,
+        question_id: questionNumber,
         question_text: question.text,
         answer_text: answer,
-        feedback,
-        scores: {
-          overall: feedback.overall,
-          clarity: feedback.clarity,
-          relevance: feedback.relevance,
-          structure: feedback.structure,
-          technicalAccuracy: feedback.technicalAccuracy,
+        feedback: {
+          ...normalized.canonicalFeedback,
+          ...(answerMetrics ? { answerMetrics } : {}),
+          evaluationStatus: "completed",
         },
-        strengths: feedback.strengths,
-        weaknesses: feedback.weaknesses,
-        improved_answer: feedback.improvedAnswer,
-        summary: feedback.summary,
-        interview_tip: feedback.interviewTip,
+        scores: {
+          ...normalized.scores,
+          ...(answerMetrics ? { answerMetrics } : {}),
+        },
+        strengths: normalized.strengths,
+        weaknesses: normalized.weaknesses,
+        improved_answer: normalized.improvedAnswer,
+        summary: normalized.summary,
+        interview_tip: normalized.interviewTip,
       },
       { onConflict: "session_id,question_id" },
     )
@@ -461,6 +624,47 @@ export async function saveInterviewAnswer({
 
   if (error) {
     throwIfSupabaseError(error, "Could not save your answer.");
+  }
+
+  return data.id as string;
+}
+
+export async function saveInterviewAnswerDraft({
+  sessionId,
+  userId,
+  question,
+  answer,
+}: SavedAnswerDraftInput) {
+  requireSupabaseConfig();
+
+  const questionNumber = normalizeQuestionNumber(question.id);
+  const { data, error } = await supabase
+    .from("answers")
+    .upsert(
+      {
+        session_id: sessionId,
+        user_id: userId,
+        question_id: questionNumber,
+        question_text: question.text,
+        answer_text: answer,
+        feedback: {
+          evaluationStatus: "pending",
+          evaluationVersion: "humane-v2",
+        },
+        scores: {},
+        strengths: [],
+        weaknesses: [],
+        improved_answer: "",
+        summary: "",
+        interview_tip: "",
+      },
+      { onConflict: "session_id,question_id" },
+    )
+    .select("id")
+    .single();
+
+  if (error) {
+    throwIfSupabaseError(error, "Could not save your answer before evaluation.");
   }
 
   return data.id as string;
@@ -486,7 +690,7 @@ export async function completeInterviewSession({
       final_report: finalReport || null,
       status: "completed",
       completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      cancelled_at: null,
     })
     .eq("id", sessionId)
     .eq("user_id", userId);
@@ -505,14 +709,11 @@ export async function cancelInterviewSession({
 }) {
   requireSupabaseConfig();
 
-  const now = new Date().toISOString();
-
   const { error } = await supabase
     .from("interview_sessions")
     .update({
       status: "cancelled",
-      cancelled_at: now,
-      updated_at: now,
+      cancelled_at: new Date().toISOString(),
     })
     .eq("id", sessionId)
     .eq("user_id", userId);
@@ -522,20 +723,22 @@ export async function cancelInterviewSession({
   }
 }
 
-export async function getInterviewSession(sessionId: string) {
+export async function getInterviewSession(sessionId: string, userId?: string) {
   requireSupabaseConfig();
 
-  const { data, error } = await supabase
-    .from("interview_sessions")
-    .select("*")
-    .eq("id", sessionId)
-    .maybeSingle();
+  let query = supabase.from("interview_sessions").select("*").eq("id", sessionId);
+
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     throwIfSupabaseError(error, "Could not load the interview session.");
   }
 
-  return data ? mapSession(data) : null;
+  return data ? mapSession(data as InterviewSessionRow) : null;
 }
 
 export async function getUserInterviewSessions(userId: string) {
@@ -552,7 +755,7 @@ export async function getUserInterviewSessions(userId: string) {
     throwIfSupabaseError(error, "Could not load interview sessions.");
   }
 
-  return (data || []).map(mapSession);
+  return (data || []).map((row: unknown) => mapSession(row as InterviewSessionRow));
 }
 
 export async function getLatestInProgressSession(userId: string) {
@@ -562,7 +765,7 @@ export async function getLatestInProgressSession(userId: string) {
     .from("interview_sessions")
     .select("*")
     .eq("user_id", userId)
-    .eq("status", "in-progress")
+    .eq("status", "in_progress")
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -571,7 +774,7 @@ export async function getLatestInProgressSession(userId: string) {
     throwIfSupabaseError(error, "Could not load your active interview session.");
   }
 
-  return data ? mapSession(data) : null;
+  return data ? mapSession(data as InterviewSessionRow) : null;
 }
 
 export async function getSessionAnswers({
@@ -595,7 +798,7 @@ export async function getSessionAnswers({
     throwIfSupabaseError(error, "Could not load interview answers.");
   }
 
-  return (data || []).map(mapAnswer);
+  return (data || []).map((row: unknown) => mapAnswer(row as AnswerRow));
 }
 
 export async function saveSpeechMetrics({ sessionId, userId, metrics }: SavedSpeechMetricsInput) {
@@ -603,15 +806,24 @@ export async function saveSpeechMetrics({ sessionId, userId, metrics }: SavedSpe
 
   const { data, error } = await supabase
     .from("speech_metrics")
-    .insert({
-      session_id: sessionId,
-      user_id: userId,
-      metrics,
-    })
+    .upsert(
+      {
+        session_id: sessionId,
+        user_id: userId,
+        metrics,
+      },
+      { onConflict: "session_id" },
+    )
     .select("id")
     .single();
 
   if (error) {
+    if (error.code === "PGRST205") {
+      console.warn(
+        "Speech metrics are not persisted until the speech_metrics migration is applied.",
+      );
+      return null;
+    }
     throwIfSupabaseError(error, "Could not save speech metrics.");
   }
 
@@ -621,13 +833,32 @@ export async function saveSpeechMetrics({ sessionId, userId, metrics }: SavedSpe
 export async function saveVisualMetrics({ sessionId, userId, metrics }: SavedVisualMetricsInput) {
   requireSupabaseConfig();
 
+  const value = metrics as VisualMetrics & Record<string, unknown>;
+  const now = new Date().toISOString();
+
+  const payload = {
+    session_id: sessionId,
+    user_id: userId,
+    camera_presence_score: toFiniteNumber(value.cameraPresenceScore),
+    face_visibility_score: toFiniteNumber(value.faceVisibilityScore),
+    face_centering_score: toFiniteNumber(value.faceCenteringScore),
+    hand_visibility_score: toFiniteNumber(value.handVisibilityScore),
+    movement_stability_score: toFiniteNumber(value.movementStabilityScore),
+    overall_presentation_score: toFiniteNumber(value.overallPresentationScore),
+    analysis_duration_ms: Math.max(0, Math.round(toFiniteNumber(value.analysisDurationMs))),
+    frame_count: Math.max(0, Math.round(toFiniteNumber(value.frameCount))),
+    face_detected_frames: Math.max(0, Math.round(toFiniteNumber(value.faceDetectedFrames))),
+    face_centered_frames: Math.max(0, Math.round(toFiniteNumber(value.faceCenteredFrames))),
+    hand_detected_frames: Math.max(0, Math.round(toFiniteNumber(value.handDetectedFrames))),
+    stable_frames: Math.max(0, Math.round(toFiniteNumber(value.stableFrames))),
+    visual_summary: toStringArray(value.visualSummary),
+    raw_metrics: value,
+    updated_at: now,
+  };
+
   const { data, error } = await supabase
     .from("visual_metrics")
-    .insert({
-      session_id: sessionId,
-      user_id: userId,
-      metrics,
-    })
+    .upsert(payload, { onConflict: "session_id" })
     .select("id")
     .single();
 
@@ -652,15 +883,26 @@ export async function getSessionSpeechMetrics({
     .select("*")
     .eq("session_id", sessionId)
     .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (error) {
+    if (error.code === "PGRST205") {
+      return null;
+    }
     throwIfSupabaseError(error, "Could not load speech metrics.");
   }
 
-  return data ? mapMetrics(data as MetricsRow<SpeechMetrics>) : null;
+  if (!data) return null;
+
+  const row = data as SpeechMetricsRow;
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    userId: row.user_id,
+    metrics: row.metrics,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || "",
+  };
 }
 
 export async function getSessionVisualMetrics({
@@ -677,13 +919,11 @@ export async function getSessionVisualMetrics({
     .select("*")
     .eq("session_id", sessionId)
     .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (error) {
     throwIfSupabaseError(error, "Could not load visual metrics.");
   }
 
-  return data ? mapMetrics(data as MetricsRow<VisualMetrics>) : null;
+  return data ? mapVisualMetrics(data as VisualMetricsRow) : null;
 }
