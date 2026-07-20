@@ -82,7 +82,7 @@ test("all measurable categories use the configured video weights", () => {
     speechDeliveryScore: 60,
     visualPresentationScore: 40,
   });
-  assert.equal(result.overallScore, 70);
+  assert.equal(result.overallScore, 73);
   assert.equal(
     result.contributions.reduce((total, item) => total + item.effectiveWeight, 0),
     1,
@@ -102,8 +102,8 @@ test("unavailable top-level categories are excluded and remaining weights renorm
     speechDeliveryScore: null,
     visualPresentationScore: 40,
   });
-  assert.equal(noVisual.overallScore, 75);
-  assert.equal(noSpeech.overallScore, 73);
+  assert.equal(noVisual.overallScore, 77);
+  assert.equal(noSpeech.overallScore, 75);
   assert.equal(
     noVisual.contributions.find((item) => item.key === "visualPresentation").effectiveWeight,
     0,
@@ -292,7 +292,7 @@ test("configured weights total exactly 100 percent and version metadata is stabl
   const score = composeInterviewScore({ mode: "text", answerQualityScore: 90 });
   assert.equal(score.scoringVersion, INTERVIEW_SCORING_VERSION);
   assert.equal(INTERVIEW_METRICS_VERSION, "interview-metrics-v3");
-  assert.equal(INTERVIEW_SCORING_VERSION, "interview-score-v3");
+  assert.equal(INTERVIEW_SCORING_VERSION, "interview-score-v4");
 });
 
 test("report selectors preserve legacy scores and respect canonical unavailable scores", () => {

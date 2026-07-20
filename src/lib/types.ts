@@ -105,15 +105,41 @@ export function normalizeExperienceLevel(
   return EXPERIENCE_LEVEL_ALIASES[value.trim().toLowerCase()] || fallback;
 }
 
-export type InterviewMode =
-  | "Text"
-  | "Voice"
-  | "Video";
+export const INTERVIEW_MODES = ["Text", "Voice", "Video"] as const;
 
-export type InterviewModeValue =
-  | "text"
-  | "voice"
-  | "video";
+export type InterviewMode = (typeof INTERVIEW_MODES)[number];
+
+export const INTERVIEW_MODE_VALUES = ["text", "voice", "video"] as const;
+
+export type InterviewModeValue = (typeof INTERVIEW_MODE_VALUES)[number];
+
+const INTERVIEW_MODE_ALIASES: Readonly<Record<string, InterviewModeValue>> = {
+  text: "text",
+  written: "text",
+  typing: "text",
+  voice: "voice",
+  audio: "voice",
+  speech: "voice",
+  video: "video",
+  camera: "video",
+};
+
+export function normalizeInterviewModeValue(
+  value: unknown,
+  fallback: InterviewModeValue = "text",
+): InterviewModeValue {
+  if (typeof value !== "string") return fallback;
+
+  return INTERVIEW_MODE_ALIASES[value.trim().toLowerCase()] || fallback;
+}
+
+export function toInterviewMode(value: unknown): InterviewMode {
+  const normalized = normalizeInterviewModeValue(value);
+
+  if (normalized === "voice") return "Voice";
+  if (normalized === "video") return "Video";
+  return "Text";
+}
 
 export interface ResumePreview {
   fileName: string;
@@ -192,9 +218,40 @@ export interface InterviewSetup {
   questionCount: number;
 }
 
+export type EvaluationQuestionType =
+  | "technical"
+  | "behavioural"
+  | "situational"
+  | "motivational"
+  | "general";
+
+/**
+ * Question metadata must survive from question generation through answer
+ * submission. The evaluator uses these fields to apply a question-specific
+ * rubric instead of judging every answer with the same generic criteria.
+ */
 export interface Question {
-  id: number;
+  /**
+   * AI-generated and fallback questions use string IDs such as `q-1` and
+   * `fallback-1`, while older saved sessions may still contain numeric IDs.
+   */
+  id: string | number;
+
   text: string;
+
+  /** Interview category returned by question generation. */
+  category?: InterviewType | EvaluationQuestionType;
+
+  /**
+   * Kept as `difficulty` for compatibility, but represents experience level.
+   */
+  difficulty?: Difficulty;
+
+  /**
+   * Question-specific marking guidance generated with the question.
+   * This must be sent back with the candidate's answer.
+   */
+  expectedFocus?: string;
 }
 
 export interface Feedback {
@@ -213,15 +270,11 @@ export interface Feedback {
     | "meaningful"
     | "partially_meaningful"
     | "unrelated"
+    | "non_answer"
     | "nonsense"
     | "blank";
 
-  questionType?:
-    | "technical"
-    | "behavioural"
-    | "situational"
-    | "motivational"
-    | "general";
+  questionType?: EvaluationQuestionType;
 
   relevanceClassification?:
     | "directly_relevant"
@@ -234,6 +287,14 @@ export interface Feedback {
   evaluationVersion?: string;
   confidence?: number;
   wordCount?: number;
+  characterCount?: number;
+
+  /** Indicates how primary and reviewer evaluations were reconciled. */
+  reconciliationMethod?:
+    | "not-reviewed"
+    | "selected-review-evaluation"
+    | "retained-primary-evaluation"
+    | string;
 
   strengths: string[];
   weaknesses: string[];
@@ -266,6 +327,9 @@ export interface AnswerWithFeedback {
   question: Question;
   answer: string;
   feedback: Feedback;
+
+  /** Optional for older saved answers; useful for speech-to-text-aware review. */
+  mode?: InterviewMode | InterviewModeValue;
 }
 
 export interface SpeechMetrics {

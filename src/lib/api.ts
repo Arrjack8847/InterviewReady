@@ -5,6 +5,7 @@ import type {
   Difficulty,
   Feedback,
   FinalReport,
+  InterviewModeValue,
   InterviewType,
   SpeechMetrics,
   VisualMetrics,
@@ -219,6 +220,21 @@ export async function generateInterviewQuestions(input: GenerateQuestionsInput) 
 export interface AnalyzeAnswerInput {
   question: string;
   answer: string;
+
+  /**
+   * Question-specific marking context generated together with the question.
+   * Keeping these fields in the API request prevents the evaluator from having
+   * to guess what evidence the question is intended to test.
+   */
+  expectedFocus?: string;
+  questionCategory?: string;
+
+  /**
+   * The answer mode helps the evaluator treat speech-to-text imperfections
+   * fairly for voice and video interviews.
+   */
+  mode?: InterviewModeValue;
+
   role: string;
   targetRole?: string;
   type: InterviewType;
@@ -229,6 +245,7 @@ export interface AnalyzeAnswerInput {
   resumeSkills?: string[];
   resumeProjects?: string[];
   resumeEducation?: string;
+  companyContext?: Partial<CompanyContext>;
 }
 
 interface BackendFeedback {
@@ -248,6 +265,8 @@ interface BackendFeedback {
   evaluationVersion?: string;
   confidence?: number;
   wordCount?: number;
+  characterCount?: number;
+  reconciliationMethod?: string;
   feedback?: string;
   strengths: string[];
   improvements: string[];
@@ -303,6 +322,8 @@ export async function analyzeInterviewAnswer(input: AnalyzeAnswerInput): Promise
     evaluationVersion: data.evaluationVersion,
     confidence: data.confidence,
     wordCount: data.wordCount,
+    characterCount: data.characterCount,
+    reconciliationMethod: data.reconciliationMethod,
     strengths: data.strengths || [],
     weaknesses: data.improvements || [],
     improvedAnswer: data.improvedAnswer,
@@ -334,7 +355,7 @@ export interface GenerateFinalReportInput {
   resumeSkills?: string[];
   resumeProjects?: string[];
   resumeEducation?: string;
-  mode?: string;
+  mode?: InterviewModeValue;
   speechMetrics?: SpeechMetrics;
   visualMetrics?: VisualMetrics;
 }

@@ -1,6 +1,8 @@
 import {
+  AlertTriangle,
   Camera,
   CheckCircle2,
+  Info,
   Lightbulb,
   Mic,
   ShieldCheck,
@@ -9,9 +11,7 @@ import {
 
 import { Progress } from "@/components/ui/progress";
 import type { PersistedAnswerMetrics } from "@/features/interview/scoring/scoringTypes";
-import {
-  toTenPointDisplayScore,
-} from "@/lib/metrics";
+import { toTenPointDisplayScore } from "@/lib/metrics";
 import type { Feedback } from "@/lib/types";
 
 function getDisplayScore(
@@ -33,8 +33,10 @@ function ScoreRow({
   value: number;
   feedback: Feedback;
 }) {
-  const displayValue =
-    getDisplayScore(feedback, value);
+  const displayValue = getDisplayScore(
+    feedback,
+    value,
+  );
 
   return (
     <div>
@@ -94,6 +96,138 @@ function NormalizedScoreRow({
   );
 }
 
+type ValidityNotice = {
+  title: string;
+  description: string;
+  destructive: boolean;
+};
+
+function getValidityNotice(
+  feedback: Feedback,
+): ValidityNotice | null {
+  switch (feedback.answerValidity) {
+    case "blank":
+      return {
+        title: "No answer was submitted",
+        description:
+          "The system could not evaluate your interview skills because no answer was provided.",
+        destructive: true,
+      };
+
+    case "nonsense":
+      return {
+        title: "No meaningful answer was detected",
+        description:
+          "The response did not contain enough understandable information to answer the interview question.",
+        destructive: true,
+      };
+
+    case "non_answer":
+      return {
+        title: "The question was not answered",
+        description:
+          "Responses such as “I don’t know”, “skip”, or “no idea” do not provide the example, reasoning, or explanation expected by the interviewer.",
+        destructive: true,
+      };
+
+    case "unrelated":
+      return {
+        title: "The answer was not connected to the question",
+        description:
+          "The response was understandable, but it did not address what the interviewer asked.",
+        destructive: true,
+      };
+
+    case "partially_meaningful":
+      return {
+        title: "Your answer has a useful starting point",
+        description:
+          "The response contains a relevant idea, but it needs more explanation, evidence, or structure.",
+        destructive: false,
+      };
+
+    default:
+      return null;
+  }
+}
+
+function AnswerValidityNotice({
+  notice,
+}: {
+  notice: ValidityNotice;
+}) {
+  const Icon = notice.destructive
+    ? AlertTriangle
+    : Info;
+
+  return (
+    <div
+      role="status"
+      className={[
+        "mt-5 rounded-xl border p-4",
+        notice.destructive
+          ? "border-destructive/30 bg-destructive/5"
+          : "border-primary/25 bg-primary/5",
+      ].join(" ")}
+    >
+      <div className="flex items-start gap-3">
+        <Icon
+          className={[
+            "mt-0.5 h-5 w-5 shrink-0",
+            notice.destructive
+              ? "text-destructive"
+              : "text-primary",
+          ].join(" ")}
+        />
+
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            {notice.title}
+          </p>
+
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            {notice.description}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EvaluationSourceNotice({
+  feedback,
+}: {
+  feedback: Feedback;
+}) {
+  const fallbackUsed =
+    feedback.fallbackUsed ||
+    feedback.source === "fallback" ||
+    feedback.source === "local-fallback";
+
+  if (!fallbackUsed && !feedback.warning) {
+    return null;
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-surface-muted/60 p-4">
+      <div className="flex items-start gap-3">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            Evaluation information
+          </p>
+
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            {feedback.warning ||
+              "Detailed AI evaluation was unavailable, so a conservative local evaluation was used."}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function FeedbackCard({
   feedback,
 }: {
@@ -112,6 +246,32 @@ export function FeedbackCard({
 
   const answerMetrics =
     feedback.answerMetrics;
+
+  const validityNotice =
+    getValidityNotice(feedback);
+
+  const strengths =
+    feedback.strengths
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const weaknesses =
+    feedback.weaknesses
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const improvedAnswer =
+    feedback.improvedAnswer?.trim() || "";
+
+  const interviewTip =
+    feedback.interviewTip?.trim() || "";
+
+  const hasProfessionalismScore =
+    typeof feedback.professionalismScore ===
+      "number" &&
+    Number.isFinite(
+      feedback.professionalismScore,
+    );
 
   return (
     <article className="app-panel p-6 sm:p-8">
@@ -135,9 +295,19 @@ export function FeedbackCard({
         </div>
       </header>
 
+      {validityNotice && (
+        <AnswerValidityNotice
+          notice={validityNotice}
+        />
+      )}
+
       <p className="mt-5 rounded-xl bg-surface-muted p-4 text-sm leading-relaxed">
         {feedback.summary}
       </p>
+
+      <EvaluationSourceNotice
+        feedback={feedback}
+      />
 
       <section className="mt-6">
         <div className="mb-4">
@@ -172,11 +342,20 @@ export function FeedbackCard({
 
           <ScoreRow
             label={contentLabel}
-            value={
-              feedback.technicalAccuracy
-            }
+            value={feedback.technicalAccuracy}
             feedback={feedback}
           />
+
+          {hasProfessionalismScore && (
+            <ScoreRow
+              label="Professionalism"
+              value={
+                feedback.professionalismScore ??
+                0
+              }
+              feedback={feedback}
+            />
+          )}
         </div>
       </section>
 
@@ -186,41 +365,70 @@ export function FeedbackCard({
         />
       )}
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <FeedbackList
-          title="Strengths"
-          items={feedback.strengths}
-          variant="success"
-        />
+      {(strengths.length > 0 ||
+        weaknesses.length > 0) && (
+        <div
+          className={[
+            "mt-6 grid gap-4",
+            strengths.length > 0 &&
+            weaknesses.length > 0
+              ? "sm:grid-cols-2"
+              : "grid-cols-1",
+          ].join(" ")}
+        >
+          {strengths.length > 0 && (
+            <FeedbackList
+              title="What you did well"
+              items={strengths}
+              variant="success"
+            />
+          )}
 
-        <FeedbackList
-          title="Areas to improve"
-          items={feedback.weaknesses}
-          variant="destructive"
-        />
-      </div>
-
-      <div className="mt-4 rounded-xl border border-border bg-accent/40 p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-accent-foreground">
-          <Lightbulb className="h-4 w-4" />
-          Improved answer example
+          {weaknesses.length > 0 && (
+            <FeedbackList
+              title="Areas to improve"
+              items={weaknesses}
+              variant="destructive"
+            />
+          )}
         </div>
+      )}
 
-        <p className="mt-2 text-sm leading-relaxed">
-          {feedback.improvedAnswer}
-        </p>
-      </div>
+      {improvedAnswer && (
+        <div className="mt-4 rounded-xl border border-border bg-accent/40 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-accent-foreground">
+            <Lightbulb className="h-4 w-4" />
+            Improved answer example
+          </div>
 
-      <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-          <Lightbulb className="h-4 w-4" />
-          Interview tip
+          <p className="mt-2 whitespace-pre-line text-sm leading-relaxed">
+            {improvedAnswer}
+          </p>
+
+          {feedback.answerValidity ===
+            "non_answer" && (
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              Use this as a structure only.
+              Replace it with a truthful example
+              from your own training, studies,
+              projects, work, or volunteering.
+            </p>
+          )}
         </div>
+      )}
 
-        <p className="mt-2 text-sm leading-relaxed text-foreground">
-          {feedback.interviewTip}
-        </p>
-      </div>
+      {interviewTip && (
+        <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <Lightbulb className="h-4 w-4" />
+            Interview tip
+          </div>
+
+          <p className="mt-2 text-sm leading-relaxed text-foreground">
+            {interviewTip}
+          </p>
+        </div>
+      )}
     </article>
   );
 }
@@ -515,10 +723,10 @@ function VisualDeliverySection({
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        Hand gestures are treated as optional
-        coaching information. Using few or no
-        gestures does not automatically lower
-        answer quality.
+        Hand gestures are optional coaching
+        information. Using few or no gestures
+        does not automatically lower answer
+        quality.
       </p>
     </section>
   );
@@ -542,6 +750,10 @@ function FeedbackList({
     ? CheckCircle2
     : XCircle;
 
+  if (items.length === 0) {
+    return null;
+  }
+
   return (
     <div
       className={[
@@ -563,28 +775,22 @@ function FeedbackList({
         {title}
       </div>
 
-      {items.length > 0 ? (
-        <ul className="mt-2 space-y-1.5 text-sm text-foreground">
-          {items.map(
-            (item, index) => (
-              <li
-                key={`${item}-${index}`}
-                className="flex gap-2"
-              >
-                <span aria-hidden="true">
-                  •
-                </span>
+      <ul className="mt-2 space-y-1.5 text-sm text-foreground">
+        {items.map(
+          (item, index) => (
+            <li
+              key={`${item}-${index}`}
+              className="flex gap-2"
+            >
+              <span aria-hidden="true">
+                •
+              </span>
 
-                <span>{item}</span>
-              </li>
-            ),
-          )}
-        </ul>
-      ) : (
-        <p className="mt-2 text-sm text-muted-foreground">
-          No specific items were provided.
-        </p>
-      )}
+              <span>{item}</span>
+            </li>
+          ),
+        )}
+      </ul>
     </div>
   );
 }

@@ -362,8 +362,27 @@ test("deterministic improved answers preserve meaning and do not invent experien
   assert.match(ANSWER_EVALUATION_SYSTEM_PROMPT, /Do not invent companies, jobs, projects/i);
 });
 
-test("every finalized evaluation carries the humane-v2 version", () => {
+
+
+test("common refusal phrases are classified as non-answers", () => {
+  for (const answer of ["I don't know", "idk", "skip", "no idea"]) {
+    const result = buildDeterministicEvaluation({
+      question: "Can you describe a time when you worked under pressure?",
+      answer,
+      interviewType: "Behavioral Interview",
+    });
+
+    assert.equal(result.answerValidity, "non_answer");
+    assert.equal(result.overallScore, 5);
+    assert.equal(result.scoreLabel, "Answer required");
+    assert.deepEqual(result.strengths, []);
+    assert.ok(result.structureScore <= 5);
+    assert.match(result.feedback, /does not answer/i);
+  }
+});
+
+test("every finalized evaluation carries the humane-v3 version", () => {
   const result = finaliseEvaluation(evaluation(), "I would answer clearly and add an example.");
   assert.equal(result.evaluationVersion, EVALUATION_VERSION);
-  assert.equal(EVALUATION_VERSION, "humane-v2");
+  assert.equal(EVALUATION_VERSION, "humane-v3");
 });
