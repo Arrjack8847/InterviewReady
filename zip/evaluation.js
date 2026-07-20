@@ -43,55 +43,79 @@ const scoreSchema = z.preprocess(
   z
     .number()
     .finite()
-    .transform((value) => Math.min(Math.max(Math.round(value), 0), 100)),
+    .transform((value) =>
+      Math.min(Math.max(Math.round(value), 0), 100),
+    ),
 );
 
-const confidenceSchema = z.preprocess((value) => {
-  if (typeof value === "string" && value.trim() !== "") {
-    return Number(value);
-  }
-
-  return value;
-}, z.number().finite().min(0).max(1));
-
-export const AnswerEvaluationSchema = z
-  .object({
-    answerValidity: z.enum([
-      "meaningful",
-      "partially_meaningful",
-      "unrelated",
-      "non_answer",
-      "nonsense",
-      "blank",
-    ]),
-    questionType: z.enum(["technical", "behavioural", "situational", "motivational", "general"]),
-    relevance: z.enum(["directly_relevant", "partially_relevant", "unrelated"]),
-    relevanceScore: scoreSchema,
-    clarityScore: scoreSchema,
-    contentScore: scoreSchema,
-    structureScore: scoreSchema,
-    professionalismScore: scoreSchema,
-    strengths: z.array(z.string().trim().min(1).max(500)).max(6).default([]),
-    improvements: z.array(z.string().trim().min(1).max(500)).max(6).default([]),
-    feedback: z.string().trim().min(1).max(2_000),
-    improvedAnswer: z.string().trim().max(5_000),
-    requiresReview: z.boolean().default(false),
-    reviewReason: z.string().trim().max(1_000).nullable().default(null),
-    confidence: confidenceSchema.optional(),
-  })
-  .superRefine((value, context) => {
-    if (
-      value.answerValidity !== "blank" &&
-      value.answerValidity !== "nonsense" &&
-      !value.improvedAnswer
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["improvedAnswer"],
-        message: "A meaningful evaluation requires an improved answer.",
-      });
+const confidenceSchema = z.preprocess(
+  (value) => {
+    if (typeof value === "string" && value.trim() !== "") {
+      return Number(value);
     }
-  });
+
+    return value;
+  },
+  z.number().finite().min(0).max(1),
+);
+
+export const AnswerEvaluationSchema = z.object({
+  answerValidity: z.enum([
+    "meaningful",
+    "partially_meaningful",
+    "unrelated",
+    "non_answer",
+    "nonsense",
+    "blank",
+  ]),
+  questionType: z.enum([
+    "technical",
+    "behavioural",
+    "situational",
+    "motivational",
+    "general",
+  ]),
+  relevance: z.enum([
+    "directly_relevant",
+    "partially_relevant",
+    "unrelated",
+  ]),
+  relevanceScore: scoreSchema,
+  clarityScore: scoreSchema,
+  contentScore: scoreSchema,
+  structureScore: scoreSchema,
+  professionalismScore: scoreSchema,
+  strengths: z
+    .array(z.string().trim().min(1).max(500))
+    .max(6)
+    .default([]),
+  improvements: z
+    .array(z.string().trim().min(1).max(500))
+    .max(6)
+    .default([]),
+  feedback: z.string().trim().min(1).max(2_000),
+  improvedAnswer: z.string().trim().max(5_000),
+  requiresReview: z.boolean().default(false),
+  reviewReason: z
+    .string()
+    .trim()
+    .max(1_000)
+    .nullable()
+    .default(null),
+  confidence: confidenceSchema.optional(),
+}).superRefine((value, context) => {
+  if (
+    value.answerValidity !== "blank" &&
+    value.answerValidity !== "nonsense" &&
+    !value.improvedAnswer
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["improvedAnswer"],
+      message: "A meaningful evaluation requires an improved answer.",
+    });
+  }
+});
 
 export function clampEvaluationScore(value) {
   const number = Number(value);
@@ -106,17 +130,25 @@ export function clampEvaluationScore(value) {
 export function countWords(text) {
   const normalized = String(text || "").trim();
 
-  return normalized ? normalized.split(/\s+/u).filter(Boolean).length : 0;
+  return normalized
+    ? normalized.split(/\s+/u).filter(Boolean).length
+    : 0;
 }
 
 export function normalizeAnswerInput(answer) {
   const originalAnswer = String(answer ?? "");
-  const normalizedAnswer = originalAnswer.trim().replace(/\s+/gu, " ");
+  const normalizedAnswer = originalAnswer
+    .trim()
+    .replace(/\s+/gu, " ");
 
-  const obviousInvalid = detectObviousInvalidAnswer(normalizedAnswer);
+  const obviousInvalid =
+    detectObviousInvalidAnswer(normalizedAnswer);
 
   const deterministicValidity =
-    obviousInvalid ?? (detectNonAnswer(normalizedAnswer) ? "non_answer" : null);
+    obviousInvalid ??
+    (detectNonAnswer(normalizedAnswer)
+      ? "non_answer"
+      : null);
 
   return {
     originalAnswer,
@@ -152,7 +184,9 @@ export function detectNonAnswer(answer) {
     return false;
   }
 
-  return NON_ANSWER_PATTERNS.some((pattern) => pattern.test(normalized));
+  return NON_ANSWER_PATTERNS.some((pattern) =>
+    pattern.test(normalized),
+  );
 }
 
 export function detectObviousInvalidAnswer(answer) {
@@ -162,7 +196,10 @@ export function detectObviousInvalidAnswer(answer) {
     return "blank";
   }
 
-  const tokens = normalized.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  const tokens =
+    normalized
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]+/gu) || [];
 
   const hasLetters = /\p{L}/u.test(normalized);
 
@@ -170,28 +207,43 @@ export function detectObviousInvalidAnswer(answer) {
     return "nonsense";
   }
 
-  if (tokens.length >= 4 && new Set(tokens).size === 1) {
+  if (
+    tokens.length >= 4 &&
+    new Set(tokens).size === 1
+  ) {
     return "nonsense";
   }
 
   const keyboardMashTokens = tokens.filter((token) =>
-    /^(?:asdfg+h*|qwert+y*|zxcv+b*n*|[a-z]*([a-z])\1{3,}[a-z]*)$/i.test(token),
+    /^(?:asdfg+h*|qwert+y*|zxcv+b*n*|[a-z]*([a-z])\1{3,}[a-z]*)$/i.test(
+      token,
+    ),
   );
 
-  if (tokens.length > 0 && keyboardMashTokens.length === tokens.length) {
+  if (
+    tokens.length > 0 &&
+    keyboardMashTokens.length === tokens.length
+  ) {
     return "nonsense";
   }
 
-  const symbolCount = normalized.match(/[^\p{L}\p{N}\s]/gu)?.length || 0;
+  const symbolCount =
+    normalized.match(/[^\p{L}\p{N}\s]/gu)?.length || 0;
 
-  if (normalized.length >= 8 && symbolCount / normalized.length > 0.7) {
+  if (
+    normalized.length >= 8 &&
+    symbolCount / normalized.length > 0.7
+  ) {
     return "nonsense";
   }
 
   return null;
 }
 
-export function classifyQuestionType(question, interviewType = "") {
+export function classifyQuestionType(
+  question,
+  interviewType = "",
+) {
   const text = `${interviewType} ${question}`.toLowerCase();
 
   if (
@@ -211,7 +263,9 @@ export function classifyQuestionType(question, interviewType = "") {
   }
 
   if (
-    /\b(what would you|how would you|imagine|suppose|scenario|if you|what will you)\b/.test(text)
+    /\b(what would you|how would you|imagine|suppose|scenario|if you|what will you)\b/.test(
+      text,
+    )
   ) {
     return "situational";
   }
@@ -268,7 +322,11 @@ function meaningfulTokens(text) {
     String(text || "")
       .toLowerCase()
       .match(/[\p{L}\p{N}]+/gu) || []
-  ).filter((token) => token.length > 2 && !stopWords.has(token));
+  ).filter(
+    (token) =>
+      token.length > 2 &&
+      !stopWords.has(token),
+  );
 }
 
 const RELEVANCE_THEMES = [
@@ -288,26 +346,43 @@ const RELEVANCE_THEMES = [
     /(why|motivat|interested|role|company)/i,
     /(interest|learn|grow|career|role|company|skill|contribut)/i,
   ],
-  [/(deadline|prioriti|multiple task)/i, /(prioriti|plan|deadline|communicat|urgent|task|time)/i],
+  [
+    /(deadline|prioriti|multiple task)/i,
+    /(prioriti|plan|deadline|communicat|urgent|task|time)/i,
+  ],
 ];
 
-export function classifyFallbackRelevance(question, answer) {
-  const questionTokens = new Set(meaningfulTokens(question));
+export function classifyFallbackRelevance(
+  question,
+  answer,
+) {
+  const questionTokens = new Set(
+    meaningfulTokens(question),
+  );
 
-  const answerTokens = new Set(meaningfulTokens(answer));
+  const answerTokens = new Set(
+    meaningfulTokens(answer),
+  );
 
-  const overlap = [...questionTokens].filter((token) => answerTokens.has(token)).length;
+  const overlap = [...questionTokens].filter(
+    (token) => answerTokens.has(token),
+  ).length;
 
   const themeMatch = RELEVANCE_THEMES.some(
     ([questionPattern, answerPattern]) =>
-      questionPattern.test(question) && answerPattern.test(answer),
+      questionPattern.test(question) &&
+      answerPattern.test(answer),
   );
 
   if (overlap >= 1 || themeMatch) {
     return "directly_relevant";
   }
 
-  if (/\b(i would|i can|i have|my experience|my project|first|then)\b/i.test(answer)) {
+  if (
+    /\b(i would|i can|i have|my experience|my project|first|then)\b/i.test(
+      answer,
+    )
+  ) {
     return "partially_relevant";
   }
 
@@ -316,15 +391,23 @@ export function classifyFallbackRelevance(question, answer) {
 
 export function calculateAnswerScore(scores) {
   return clampEvaluationScore(
-    scores.relevanceScore * ANSWER_EVALUATION_WEIGHTS.relevance +
-      scores.clarityScore * ANSWER_EVALUATION_WEIGHTS.clarity +
-      scores.contentScore * ANSWER_EVALUATION_WEIGHTS.questionSpecificContent +
-      scores.structureScore * ANSWER_EVALUATION_WEIGHTS.structure +
-      scores.professionalismScore * ANSWER_EVALUATION_WEIGHTS.professionalism,
+    scores.relevanceScore *
+      ANSWER_EVALUATION_WEIGHTS.relevance +
+      scores.clarityScore *
+        ANSWER_EVALUATION_WEIGHTS.clarity +
+      scores.contentScore *
+        ANSWER_EVALUATION_WEIGHTS.questionSpecificContent +
+      scores.structureScore *
+        ANSWER_EVALUATION_WEIGHTS.structure +
+      scores.professionalismScore *
+        ANSWER_EVALUATION_WEIGHTS.professionalism,
   );
 }
 
-export function applyBrevityAdjustment(score, answer) {
+export function applyBrevityAdjustment(
+  score,
+  answer,
+) {
   const words = countWords(answer);
 
   if (words === 0) {
@@ -383,7 +466,9 @@ function ensureTerminalPunctuation(text) {
     return "";
   }
 
-  return /[.!?]$/u.test(normalized) ? normalized : `${normalized}.`;
+  return /[.!?]$/u.test(normalized)
+    ? normalized
+    : `${normalized}.`;
 }
 
 function capitalizeFirst(text) {
@@ -393,15 +478,23 @@ function capitalizeFirst(text) {
     return "";
   }
 
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  return (
+    normalized.charAt(0).toUpperCase() +
+    normalized.slice(1)
+  );
 }
 
-export function classifyQuestionSubtype(question, questionType) {
+export function classifyQuestionSubtype(
+  question,
+  questionType,
+) {
   const text = String(question || "").toLowerCase();
 
   if (questionType === "technical") {
     if (
-      /\b(difference|differences|compare|comparison|versus|vs\.?|distinguish|between)\b/i.test(text)
+      /\b(difference|differences|compare|comparison|versus|vs\.?|distinguish|between)\b/i.test(
+        text,
+      )
     ) {
       return "comparison";
     }
@@ -423,16 +516,26 @@ export function classifyQuestionSubtype(question, questionType) {
     }
 
     if (
-      /\b(implement|implementation|write code|function|algorithm|complexity|program)\b/i.test(text)
+      /\b(implement|implementation|write code|function|algorithm|complexity|program)\b/i.test(
+        text,
+      )
     ) {
       return "implementation";
     }
 
-    if (/\b(how does|how do|process|steps|workflow|lifecycle)\b/i.test(text)) {
+    if (
+      /\b(how does|how do|process|steps|workflow|lifecycle)\b/i.test(
+        text,
+      )
+    ) {
       return "process";
     }
 
-    if (/\b(what is|define|definition|meaning|explain)\b/i.test(text)) {
+    if (
+      /\b(what is|define|definition|meaning|explain)\b/i.test(
+        text,
+      )
+    ) {
       return "definition";
     }
 
@@ -440,31 +543,59 @@ export function classifyQuestionSubtype(question, questionType) {
   }
 
   if (questionType === "behavioural") {
-    if (/\b(pressure|stress|urgent|time pressure|high-pressure|high pressure)\b/i.test(text)) {
+    if (
+      /\b(pressure|stress|urgent|time pressure|high-pressure|high pressure)\b/i.test(
+        text,
+      )
+    ) {
       return "pressure";
     }
 
-    if (/\b(conflict|disagreement|argument)\b/i.test(text)) {
+    if (
+      /\b(conflict|disagreement|argument)\b/i.test(
+        text,
+      )
+    ) {
       return "conflict";
     }
 
-    if (/\b(team|group|collaborat)\b/i.test(text)) {
+    if (
+      /\b(team|group|collaborat)\b/i.test(
+        text,
+      )
+    ) {
       return "teamwork";
     }
 
-    if (/\b(lead|leadership|managed|responsibility)\b/i.test(text)) {
+    if (
+      /\b(lead|leadership|managed|responsibility)\b/i.test(
+        text,
+      )
+    ) {
       return "leadership";
     }
 
-    if (/\b(mistake|failure|failed|error)\b/i.test(text)) {
+    if (
+      /\b(mistake|failure|failed|error)\b/i.test(
+        text,
+      )
+    ) {
       return "mistake";
     }
 
-    if (/\b(decision|judgement|judgment)\b/i.test(text)) {
+    if (
+      /\b(decision|judgement|judgment)\b/i.test(
+        text,
+      )
+    ) {
       return "decision-making";
     }
 
-    if (/\b(challenge|difficult|obstacle|problem)\b/i.test(text)) {
+    if (
+      /\b(challenge|difficult|obstacle|problem)\b/i.test(
+        text,
+      )
+    ) {
       return "challenge";
     }
 
@@ -472,19 +603,35 @@ export function classifyQuestionSubtype(question, questionType) {
   }
 
   if (questionType === "situational") {
-    if (/\b(emergency|safety|risk|danger|failure|warning|incident)\b/i.test(text)) {
+    if (
+      /\b(emergency|safety|risk|danger|failure|warning|incident)\b/i.test(
+        text,
+      )
+    ) {
       return "safety-critical";
     }
 
-    if (/\b(deadline|prioriti|urgent|multiple task|workload)\b/i.test(text)) {
+    if (
+      /\b(deadline|prioriti|urgent|multiple task|workload)\b/i.test(
+        text,
+      )
+    ) {
       return "prioritisation";
     }
 
-    if (/\b(customer|client|user|support|complaint)\b/i.test(text)) {
+    if (
+      /\b(customer|client|user|support|complaint)\b/i.test(
+        text,
+      )
+    ) {
       return "customer-support";
     }
 
-    if (/\b(conflict|disagreement|stakeholder)\b/i.test(text)) {
+    if (
+      /\b(conflict|disagreement|stakeholder)\b/i.test(
+        text,
+      )
+    ) {
       return "conflict";
     }
 
@@ -492,11 +639,19 @@ export function classifyQuestionSubtype(question, questionType) {
   }
 
   if (questionType === "motivational") {
-    if (/\b(company|organisation|organization|join us)\b/i.test(text)) {
+    if (
+      /\b(company|organisation|organization|join us)\b/i.test(
+        text,
+      )
+    ) {
       return "company-interest";
     }
 
-    if (/\b(role|position|job)\b/i.test(text)) {
+    if (
+      /\b(role|position|job)\b/i.test(
+        text,
+      )
+    ) {
       return "role-interest";
     }
 
@@ -534,42 +689,63 @@ function extractComparisonSubjects(question) {
 function buildKnownTechnicalComparison(question) {
   const text = String(question || "").toLowerCase();
 
-  if (/\blinux\b/i.test(text) && /\bwindows\b/i.test(text)) {
+  if (
+    /\blinux\b/i.test(text) &&
+    /\bwindows\b/i.test(text)
+  ) {
     return "Linux is an open-source operating system, which means its source code can be viewed and modified. Windows is a proprietary operating system developed by Microsoft and is distributed as a ready-to-use commercial product. Linux generally offers more customization and control, while Windows is commonly chosen for its familiar interface and broad desktop software support. The better choice depends on the user's requirements and technical environment.";
   }
 
-  if (/\bfirewall\b/i.test(text) && /\brouter\b/i.test(text)) {
+  if (
+    /\bfirewall\b/i.test(text) &&
+    /\brouter\b/i.test(text)
+  ) {
     return "A router connects different networks and directs data to the correct destination. A firewall monitors network traffic and allows or blocks it according to security rules. The router mainly provides connectivity and routing, while the firewall mainly protects the network. They perform different roles and are commonly used together.";
   }
 
-  if (/\btcp\b/i.test(text) && /\budp\b/i.test(text)) {
+  if (
+    /\btcp\b/i.test(text) &&
+    /\budp\b/i.test(text)
+  ) {
     return "TCP is connection-oriented and focuses on reliable, ordered delivery of data. UDP is connectionless and sends data with less overhead, but it does not guarantee delivery or ordering. TCP is suitable when accuracy and reliability are important, while UDP is useful when speed and low latency are more important.";
   }
 
-  if (/\bsql\b/i.test(text) && /\bnosql\b/i.test(text)) {
+  if (
+    /\bsql\b/i.test(text) &&
+    /\bnosql\b/i.test(text)
+  ) {
     return "SQL databases normally store structured data in related tables and use a predefined schema. NoSQL databases support more flexible data models such as documents, key-value pairs, or graphs. SQL is often suitable for strongly structured data and complex relationships, while NoSQL can be useful when flexibility and horizontal scaling are important.";
   }
 
   return "";
 }
 
-function getEmptyImprovedAnswer(questionType, question = "") {
-  const subtype = classifyQuestionSubtype(question, questionType);
-
-  const questionText = String(question || "").toLowerCase();
-  const isPilotQuestion = /\b(pilot|aviation|aircraft|flight|cockpit|airliner)\b/i.test(
-    questionText,
+function getEmptyImprovedAnswer(
+  questionType,
+  question = "",
+) {
+  const subtype = classifyQuestionSubtype(
+    question,
+    questionType,
   );
 
+  const questionText = String(question || "").toLowerCase();
+  const isPilotQuestion =
+    /\b(pilot|aviation|aircraft|flight|cockpit|airliner)\b/i.test(
+      questionText,
+    );
+
   if (questionType === "technical") {
-    const knownComparison = buildKnownTechnicalComparison(question);
+    const knownComparison =
+      buildKnownTechnicalComparison(question);
 
     if (knownComparison) {
       return knownComparison;
     }
 
     if (subtype === "comparison") {
-      const subjects = extractComparisonSubjects(question);
+      const subjects =
+        extractComparisonSubjects(question);
 
       if (subjects) {
         return `The main difference between ${subjects.first} and ${subjects.second} is their purpose, behaviour, strengths, limitations, and typical use cases. ${capitalizeFirst(
@@ -670,21 +846,36 @@ function getEmptyImprovedAnswer(questionType, question = "") {
   return "My main point is directly connected to the question. I would support it with one relevant detail or example and finish with a clear reason, result, or conclusion.";
 }
 
-function buildTechnicalImprovedAnswer({ question, answer, subtype, relevance }) {
-  const knownComparison = buildKnownTechnicalComparison(question);
+function buildTechnicalImprovedAnswer({
+  question,
+  answer,
+  subtype,
+  relevance,
+}) {
+  const knownComparison =
+    buildKnownTechnicalComparison(question);
 
   if (knownComparison) {
     return knownComparison;
   }
 
-  const candidateAnswer = capitalizeFirst(ensureTerminalPunctuation(answer));
+  const candidateAnswer = capitalizeFirst(
+    ensureTerminalPunctuation(answer),
+  );
 
-  if (!candidateAnswer || relevance === "unrelated") {
-    return getEmptyImprovedAnswer("technical", question);
+  if (
+    !candidateAnswer ||
+    relevance === "unrelated"
+  ) {
+    return getEmptyImprovedAnswer(
+      "technical",
+      question,
+    );
   }
 
   if (subtype === "comparison") {
-    const subjects = extractComparisonSubjects(question);
+    const subjects =
+      extractComparisonSubjects(question);
 
     if (subjects) {
       return `${candidateAnswer} The main difference between ${subjects.first} and ${subjects.second} is their purpose, behaviour, strengths, limitations, and typical use cases. The more appropriate option depends on the requirements of the situation.`;
@@ -726,7 +917,10 @@ export function buildFallbackImprovedAnswer({
     .trim()
     .replace(/\s+/gu, " ");
 
-  const subtype = classifyQuestionSubtype(question, questionType);
+  const subtype = classifyQuestionSubtype(
+    question,
+    questionType,
+  );
 
   if (questionType === "technical") {
     return buildTechnicalImprovedAnswer({
@@ -737,11 +931,20 @@ export function buildFallbackImprovedAnswer({
     });
   }
 
-  if (!normalizedAnswer || relevance === "unrelated" || detectNonAnswer(normalizedAnswer)) {
-    return getEmptyImprovedAnswer(questionType, question);
+  if (
+    !normalizedAnswer ||
+    relevance === "unrelated" ||
+    detectNonAnswer(normalizedAnswer)
+  ) {
+    return getEmptyImprovedAnswer(
+      questionType,
+      question,
+    );
   }
 
-  const candidateAnswer = capitalizeFirst(ensureTerminalPunctuation(normalizedAnswer));
+  const candidateAnswer = capitalizeFirst(
+    ensureTerminalPunctuation(normalizedAnswer),
+  );
 
   // In deterministic fallback mode, preserve meaningful candidate content
   // rather than inventing details that were not provided. Question-specific
@@ -750,18 +953,30 @@ export function buildFallbackImprovedAnswer({
 }
 
 export function parseAnswerEvaluation(value) {
-  const parsed = AnswerEvaluationSchema.safeParse(value);
+  const parsed =
+    AnswerEvaluationSchema.safeParse(value);
 
   if (!parsed.success) {
-    const details = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
+    const details = parsed.error.issues.map(
+      (issue) =>
+        `${issue.path.join(".")}: ${issue.message}`,
+    );
 
-    throw new Error(`Invalid AI answer evaluation: ${details.join("; ")}`);
+    throw new Error(
+      `Invalid AI answer evaluation: ${details.join(
+        "; ",
+      )}`,
+    );
   }
 
   return parsed.data;
 }
 
-export function detectSuspiciousEvaluation(evaluation, answer, options = {}) {
+export function detectSuspiciousEvaluation(
+  evaluation,
+  answer,
+  options = {},
+) {
   const reasons = [];
   const wordCount = countWords(answer);
 
@@ -775,11 +990,18 @@ export function detectSuspiciousEvaluation(evaluation, answer, options = {}) {
 
   const positiveFeedback =
     /\b(good|clear|relevant|strong|useful|well|effective|understandable)\b/i.test(
-      `${evaluation.feedback} ${evaluation.strengths.join(" ")}`,
+      `${evaluation.feedback} ${evaluation.strengths.join(
+        " ",
+      )}`,
     );
 
-  if (evaluation.overallScore < 25 && evaluation.relevanceScore >= 40) {
-    reasons.push("Overall score is below 25 despite meaningful relevance credit.");
+  if (
+    evaluation.overallScore < 25 &&
+    evaluation.relevanceScore >= 40
+  ) {
+    reasons.push(
+      "Overall score is below 25 despite meaningful relevance credit.",
+    );
   }
 
   if (
@@ -787,15 +1009,27 @@ export function detectSuspiciousEvaluation(evaluation, answer, options = {}) {
     wordCount > 20 &&
     evaluation.overallScore < 25
   ) {
-    reasons.push("A meaningful answer longer than 20 words received below 25.");
+    reasons.push(
+      "A meaningful answer longer than 20 words received below 25.",
+    );
   }
 
-  if (evaluation.questionType !== "technical" && evaluation.contentScore === 0) {
-    reasons.push("A nontechnical answer received zero content credit.");
+  if (
+    evaluation.questionType !== "technical" &&
+    evaluation.contentScore === 0
+  ) {
+    reasons.push(
+      "A nontechnical answer received zero content credit.",
+    );
   }
 
-  if (positiveFeedback && evaluation.overallScore < 20) {
-    reasons.push("Positive written feedback contradicts the extremely low score.");
+  if (
+    positiveFeedback &&
+    evaluation.overallScore < 20
+  ) {
+    reasons.push(
+      "Positive written feedback contradicts the extremely low score.",
+    );
   }
 
   if (
@@ -803,19 +1037,37 @@ export function detectSuspiciousEvaluation(evaluation, answer, options = {}) {
     options.deterministicValidity !== "nonsense" &&
     wordCount >= 5
   ) {
-    reasons.push("A normal-looking answer was classified as nonsense.");
+    reasons.push(
+      "A normal-looking answer was classified as nonsense.",
+    );
   }
 
-  if (Math.max(...categoryScores) - Math.min(...categoryScores) > 60) {
-    reasons.push("Category scores differ by more than 60 points.");
+  if (
+    Math.max(...categoryScores) -
+      Math.min(...categoryScores) >
+    60
+  ) {
+    reasons.push(
+      "Category scores differ by more than 60 points.",
+    );
   }
 
-  if (evaluation.relevance === "directly_relevant" && evaluation.relevanceScore < 35) {
-    reasons.push("A directly relevant answer received almost no relevance credit.");
+  if (
+    evaluation.relevance === "directly_relevant" &&
+    evaluation.relevanceScore < 35
+  ) {
+    reasons.push(
+      "A directly relevant answer received almost no relevance credit.",
+    );
   }
 
-  if (typeof evaluation.confidence === "number" && evaluation.confidence < 0.45) {
-    reasons.push("Evaluator confidence is below 0.45.");
+  if (
+    typeof evaluation.confidence === "number" &&
+    evaluation.confidence < 0.45
+  ) {
+    reasons.push(
+      "Evaluator confidence is below 0.45.",
+    );
   }
 
   if (
@@ -823,7 +1075,9 @@ export function detectSuspiciousEvaluation(evaluation, answer, options = {}) {
     typeof evaluation.confidence === "number" &&
     evaluation.confidence < 0.65
   ) {
-    reasons.push("Speech transcription may have altered the candidate's intended meaning.");
+    reasons.push(
+      "Speech transcription may have altered the candidate's intended meaning.",
+    );
   }
 
   return {
@@ -832,36 +1086,65 @@ export function detectSuspiciousEvaluation(evaluation, answer, options = {}) {
   };
 }
 
-export function finaliseEvaluation(input, answer, options = {}) {
-  const evaluation = parseAnswerEvaluation(input);
+export function finaliseEvaluation(
+  input,
+  answer,
+  options = {},
+) {
+  const evaluation =
+    parseAnswerEvaluation(input);
 
-  const normalized = normalizeAnswerInput(answer);
+  const normalized =
+    normalizeAnswerInput(answer);
 
-  const deterministicValidity = options.deterministicValidity ?? normalized.deterministicValidity;
+  const deterministicValidity =
+    options.deterministicValidity ??
+    normalized.deterministicValidity;
 
   if (
     deterministicValidity === "blank" ||
     deterministicValidity === "nonsense" ||
     deterministicValidity === "non_answer"
   ) {
-    evaluation.answerValidity = deterministicValidity;
+    evaluation.answerValidity =
+      deterministicValidity;
   }
 
   if (evaluation.answerValidity === "non_answer") {
     evaluation.relevance = "unrelated";
-    evaluation.relevanceScore = Math.min(evaluation.relevanceScore, 5);
-    evaluation.clarityScore = Math.min(evaluation.clarityScore, 20);
-    evaluation.contentScore = Math.min(evaluation.contentScore, 5);
-    evaluation.structureScore = Math.min(evaluation.structureScore, 5);
-    evaluation.professionalismScore = Math.min(evaluation.professionalismScore, 30);
+    evaluation.relevanceScore = Math.min(
+      evaluation.relevanceScore,
+      5,
+    );
+    evaluation.clarityScore = Math.min(
+      evaluation.clarityScore,
+      20,
+    );
+    evaluation.contentScore = Math.min(
+      evaluation.contentScore,
+      5,
+    );
+    evaluation.structureScore = Math.min(
+      evaluation.structureScore,
+      5,
+    );
+    evaluation.professionalismScore = Math.min(
+      evaluation.professionalismScore,
+      30,
+    );
     evaluation.strengths = [];
   }
 
   let overallScore;
 
-  if (evaluation.answerValidity === "blank" || evaluation.answerValidity === "nonsense") {
+  if (
+    evaluation.answerValidity === "blank" ||
+    evaluation.answerValidity === "nonsense"
+  ) {
     overallScore = 0;
-  } else if (evaluation.answerValidity === "non_answer") {
+  } else if (
+    evaluation.answerValidity === "non_answer"
+  ) {
     overallScore = 5;
   } else {
     overallScore = applyBrevityAdjustment(
@@ -869,41 +1152,65 @@ export function finaliseEvaluation(input, answer, options = {}) {
       normalized.normalizedAnswer,
     );
 
-    if (evaluation.answerValidity === "unrelated" || evaluation.relevance === "unrelated") {
-      overallScore = Math.min(Math.max(overallScore, 1), 24);
+    if (
+      evaluation.answerValidity === "unrelated" ||
+      evaluation.relevance === "unrelated"
+    ) {
+      overallScore = Math.min(
+        Math.max(overallScore, 1),
+        24,
+      );
     } else if (
       evaluation.answerValidity === "meaningful" &&
       evaluation.relevanceScore >= 45 &&
       evaluation.clarityScore >= 40 &&
-      !(evaluation.questionType === "technical" && evaluation.contentScore < 20) &&
+      !(
+        evaluation.questionType === "technical" &&
+        evaluation.contentScore < 20
+      ) &&
       overallScore < 35
     ) {
       overallScore = 35;
     }
   }
 
-  overallScore = clampEvaluationScore(overallScore);
+  overallScore =
+    clampEvaluationScore(overallScore);
 
   const result = {
     ...evaluation,
     overallScore,
     scoreLabel:
-      evaluation.answerValidity === "non_answer" ? "Answer required" : getScoreLabel(overallScore),
+      evaluation.answerValidity === "non_answer"
+        ? "Answer required"
+        : getScoreLabel(overallScore),
     wordCount: normalized.wordCount,
     characterCount: normalized.characterCount,
     evaluationVersion: EVALUATION_VERSION,
   };
 
-  const suspicious = detectSuspiciousEvaluation(result, normalized.normalizedAnswer, {
-    deterministicValidity,
-    speechToText: options.speechToText,
-  });
+  const suspicious =
+    detectSuspiciousEvaluation(
+      result,
+      normalized.normalizedAnswer,
+      {
+        deterministicValidity,
+        speechToText: options.speechToText,
+      },
+    );
 
   return {
     ...result,
-    requiresReview: result.requiresReview || suspicious.suspicious,
+    requiresReview:
+      result.requiresReview ||
+      suspicious.suspicious,
     reviewReasons: Array.from(
-      new Set([...(result.reviewReason ? [result.reviewReason] : []), ...suspicious.reasons]),
+      new Set([
+        ...(result.reviewReason
+          ? [result.reviewReason]
+          : []),
+        ...suspicious.reasons,
+      ]),
     ),
   };
 }
@@ -935,20 +1242,35 @@ function baseInvalidEvaluation(
     feedback: blank
       ? "No answer was detected. Try answering the question using one or two clear sentences."
       : "No meaningful answer was detected. Try answering the question using one or two clear sentences.",
-    improvedAnswer: getEmptyImprovedAnswer(questionType, question),
+    improvedAnswer:
+      getEmptyImprovedAnswer(
+        questionType,
+        question,
+      ),
     requiresReview: false,
     reviewReason: null,
     overallScore: 0,
-    scoreLabel: blank ? "No answer detected" : "No meaningful answer detected",
+    scoreLabel: blank
+      ? "No answer detected"
+      : "No meaningful answer detected",
     wordCount,
     characterCount,
-    evaluationVersion: EVALUATION_VERSION,
+    evaluationVersion:
+      EVALUATION_VERSION,
     reviewReasons: [],
   };
 }
 
-function buildNonAnswerEvaluation({ question, questionType, wordCount, characterCount }) {
-  const subtype = classifyQuestionSubtype(question, questionType);
+function buildNonAnswerEvaluation({
+  question,
+  questionType,
+  wordCount,
+  characterCount,
+}) {
+  const subtype = classifyQuestionSubtype(
+    question,
+    questionType,
+  );
 
   const expectedDetail =
     questionType === "behavioural"
@@ -978,8 +1300,13 @@ function buildNonAnswerEvaluation({ question, questionType, wordCount, character
       `Provide ${expectedDetail}.`,
       "If you do not have an exact example, use the closest truthful experience from training, study, work, volunteering, or teamwork.",
     ],
-    feedback: `The response does not answer the interview question. The interviewer expected ${expectedDetail}.`,
-    improvedAnswer: getEmptyImprovedAnswer(questionType, question),
+    feedback:
+      `The response does not answer the interview question. The interviewer expected ${expectedDetail}.`,
+    improvedAnswer:
+      getEmptyImprovedAnswer(
+        questionType,
+        question,
+      ),
     requiresReview: false,
     reviewReason: null,
     confidence: 1,
@@ -992,10 +1319,19 @@ function buildNonAnswerEvaluation({ question, questionType, wordCount, character
   };
 }
 
-export function buildDeterministicEvaluation({ question, answer, interviewType = "" }) {
-  const normalized = normalizeAnswerInput(answer);
+export function buildDeterministicEvaluation({
+  question,
+  answer,
+  interviewType = "",
+}) {
+  const normalized =
+    normalizeAnswerInput(answer);
 
-  const questionType = classifyQuestionType(question, interviewType);
+  const questionType =
+    classifyQuestionType(
+      question,
+      interviewType,
+    );
 
   if (
     normalized.deterministicValidity === "blank" ||
@@ -1010,7 +1346,9 @@ export function buildDeterministicEvaluation({ question, answer, interviewType =
     );
   }
 
-  if (normalized.deterministicValidity === "non_answer") {
+  if (
+    normalized.deterministicValidity === "non_answer"
+  ) {
     return buildNonAnswerEvaluation({
       question,
       questionType,
@@ -1019,15 +1357,22 @@ export function buildDeterministicEvaluation({ question, answer, interviewType =
     });
   }
 
-  const relevance = classifyFallbackRelevance(question, normalized.normalizedAnswer);
+  const relevance =
+    classifyFallbackRelevance(
+      question,
+      normalized.normalizedAnswer,
+    );
 
-  const directlyRelevant = relevance === "directly_relevant";
+  const directlyRelevant =
+    relevance === "directly_relevant";
 
-  const partiallyRelevant = relevance === "partially_relevant";
+  const partiallyRelevant =
+    relevance === "partially_relevant";
 
-  const hasReasoning = /\b(because|therefore|so that|first|next|then|finally|step|if|when)\b/i.test(
-    normalized.normalizedAnswer,
-  );
+  const hasReasoning =
+    /\b(because|therefore|so that|first|next|then|finally|step|if|when)\b/i.test(
+      normalized.normalizedAnswer,
+    );
 
   const hasExample =
     /\b(example|project|experience|situation|university|assignment|volunteer|training|work|team)\b/i.test(
@@ -1048,7 +1393,12 @@ export function buildDeterministicEvaluation({ question, answer, interviewType =
           ? 5
           : 0;
 
-  const clarityScore = normalized.wordCount < 3 ? 30 : normalized.wordCount < 8 ? 52 : 68;
+  const clarityScore =
+    normalized.wordCount < 3
+      ? 30
+      : normalized.wordCount < 8
+        ? 52
+        : 68;
 
   const raw = {
     answerValidity:
@@ -1061,34 +1411,61 @@ export function buildDeterministicEvaluation({ question, answer, interviewType =
     questionType,
     relevance,
 
-    relevanceScore: directlyRelevant ? 70 : partiallyRelevant ? 42 : 8,
+    relevanceScore: directlyRelevant
+      ? 70
+      : partiallyRelevant
+        ? 42
+        : 8,
 
     clarityScore,
 
     contentScore: directlyRelevant
-      ? 42 + lengthDepth + (hasReasoning ? 8 : 0) + (hasExample ? 8 : 0) + (hasOutcome ? 5 : 0)
+      ? 42 +
+        lengthDepth +
+        (hasReasoning ? 8 : 0) +
+        (hasExample ? 8 : 0) +
+        (hasOutcome ? 5 : 0)
       : partiallyRelevant
-        ? 28 + Math.round(lengthDepth / 2) + (hasReasoning ? 4 : 0)
+        ? 28 +
+          Math.round(lengthDepth / 2) +
+          (hasReasoning ? 4 : 0)
         : 8,
 
     structureScore: directlyRelevant
-      ? 38 + (hasReasoning ? 10 : 0) + (hasExample ? 8 : 0) + (hasOutcome ? 7 : 0)
+      ? 38 +
+        (hasReasoning ? 10 : 0) +
+        (hasExample ? 8 : 0) +
+        (hasOutcome ? 7 : 0)
       : partiallyRelevant
-        ? 28 + (hasReasoning ? 7 : 0) + (hasExample ? 5 : 0)
+        ? 28 +
+          (hasReasoning ? 7 : 0) +
+          (hasExample ? 5 : 0)
         : 15,
 
-    professionalismScore: directlyRelevant ? 58 : partiallyRelevant ? 58 : 45,
+    professionalismScore: directlyRelevant
+      ? 58
+      : partiallyRelevant
+        ? 58
+        : 45,
 
     strengths: directlyRelevant
-      ? ["Your response gives a clear, relevant starting point."]
+      ? [
+          "Your response gives a clear, relevant starting point.",
+        ]
       : partiallyRelevant
-        ? ["Your response contains an understandable idea related to the question."]
+        ? [
+            "Your response contains an understandable idea related to the question.",
+          ]
         : [],
 
     improvements: directlyRelevant
-      ? ["Add one specific example and explain your personal contribution or reasoning."]
+      ? [
+          "Add one specific example and explain your personal contribution or reasoning.",
+        ]
       : partiallyRelevant
-        ? ["Make the connection to the exact question clearer and add one supporting detail."]
+        ? [
+            "Make the connection to the exact question clearer and add one supporting detail.",
+          ]
         : [
             "Answer the exact situation or topic requested by the interviewer.",
             "Add one relevant example, action, reason, or result.",
@@ -1100,12 +1477,14 @@ export function buildDeterministicEvaluation({ question, answer, interviewType =
         ? "Your response contains an understandable idea, but the connection to the exact question is incomplete. Make that connection explicit and add one supporting detail."
         : "The response is understandable, but it does not address the interview question. Answer the requested topic directly and support it with one relevant detail.",
 
-    improvedAnswer: buildFallbackImprovedAnswer({
-      question,
-      answer: normalized.normalizedAnswer,
-      questionType,
-      relevance,
-    }),
+    improvedAnswer:
+      buildFallbackImprovedAnswer({
+        question,
+        answer:
+          normalized.normalizedAnswer,
+        questionType,
+        relevance,
+      }),
 
     requiresReview: true,
 
@@ -1115,81 +1494,135 @@ export function buildDeterministicEvaluation({ question, answer, interviewType =
     confidence: 0.35,
   };
 
-  return finaliseEvaluation(raw, normalized.normalizedAnswer, {
-    deterministicValidity: normalized.deterministicValidity,
-  });
+  return finaliseEvaluation(
+    raw,
+    normalized.normalizedAnswer,
+    {
+      deterministicValidity:
+        normalized.deterministicValidity,
+    },
+  );
 }
 
-export function reconcileEvaluations(primary, review) {
-  const primaryPenalty = primary.reviewReasons.length + (1 - (primary.confidence ?? 0.5));
+export function reconcileEvaluations(
+  primary,
+  review,
+) {
+  const primaryPenalty =
+    primary.reviewReasons.length +
+    (1 - (primary.confidence ?? 0.5));
 
-  const reviewPenalty = review.reviewReasons.length + (1 - (review.confidence ?? 0.5));
+  const reviewPenalty =
+    review.reviewReasons.length +
+    (1 - (review.confidence ?? 0.5));
 
-  const selected = reviewPenalty < primaryPenalty ? review : primary;
+  const selected =
+    reviewPenalty < primaryPenalty
+      ? review
+      : primary;
 
   return {
     ...selected,
     wasReviewed: true,
-    reviewReasons: Array.from(new Set([...primary.reviewReasons, ...review.reviewReasons])),
+    reviewReasons: Array.from(
+      new Set([
+        ...primary.reviewReasons,
+        ...review.reviewReasons,
+      ]),
+    ),
     reconciliationMethod:
-      selected === review ? "selected-review-evaluation" : "retained-primary-evaluation",
+      selected === review
+        ? "selected-review-evaluation"
+        : "retained-primary-evaluation",
   };
 }
 
-export function toLegacyFeedback(evaluation, options = {}) {
-  const fallbackUsed = Boolean(options.fallbackUsed);
+export function toLegacyFeedback(
+  evaluation,
+  options = {},
+) {
+  const fallbackUsed = Boolean(
+    options.fallbackUsed,
+  );
 
   return {
-    overallScore: evaluation.overallScore,
+    overallScore:
+      evaluation.overallScore,
 
-    clarityScore: evaluation.clarityScore,
+    clarityScore:
+      evaluation.clarityScore,
 
-    relevanceScore: evaluation.relevanceScore,
+    relevanceScore:
+      evaluation.relevanceScore,
 
-    structureScore: evaluation.structureScore,
+    structureScore:
+      evaluation.structureScore,
 
-    technicalScore: evaluation.contentScore,
+    technicalScore:
+      evaluation.contentScore,
 
-    contentScore: evaluation.contentScore,
+    contentScore:
+      evaluation.contentScore,
 
-    professionalismScore: evaluation.professionalismScore,
+    professionalismScore:
+      evaluation.professionalismScore,
 
-    answerValidity: evaluation.answerValidity,
+    answerValidity:
+      evaluation.answerValidity,
 
-    questionType: evaluation.questionType,
+    questionType:
+      evaluation.questionType,
 
-    relevanceClassification: evaluation.relevance,
+    relevanceClassification:
+      evaluation.relevance,
 
-    scoreLabel: evaluation.scoreLabel,
+    scoreLabel:
+      evaluation.scoreLabel,
 
-    strengths: evaluation.strengths,
+    strengths:
+      evaluation.strengths,
 
-    improvements: evaluation.improvements,
+    improvements:
+      evaluation.improvements,
 
-    feedback: evaluation.feedback,
+    feedback:
+      evaluation.feedback,
 
-    improvedAnswer: evaluation.improvedAnswer,
+    improvedAnswer:
+      evaluation.improvedAnswer,
 
     interviewTip:
-      evaluation.improvements[0] || "Add one specific example and explain your reasoning.",
+      evaluation.improvements[0] ||
+      "Add one specific example and explain your reasoning.",
 
-    requiresReview: evaluation.requiresReview,
+    requiresReview:
+      evaluation.requiresReview,
 
-    reviewReasons: evaluation.reviewReasons,
+    reviewReasons:
+      evaluation.reviewReasons,
 
-    wasReviewed: Boolean(evaluation.wasReviewed),
+    wasReviewed: Boolean(
+      evaluation.wasReviewed,
+    ),
 
-    reconciliationMethod: evaluation.reconciliationMethod || "not-reviewed",
+    reconciliationMethod:
+      evaluation.reconciliationMethod ||
+      "not-reviewed",
 
-    confidence: evaluation.confidence,
+    confidence:
+      evaluation.confidence,
 
-    wordCount: evaluation.wordCount,
+    wordCount:
+      evaluation.wordCount,
 
-    evaluationVersion: evaluation.evaluationVersion,
+    evaluationVersion:
+      evaluation.evaluationVersion,
 
     scoreScale: "hundred",
 
-    source: fallbackUsed ? "local-fallback" : "ai",
+    source: fallbackUsed
+      ? "local-fallback"
+      : "ai",
 
     fallbackUsed,
 

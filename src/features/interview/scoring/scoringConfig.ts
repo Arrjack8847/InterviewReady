@@ -1,8 +1,6 @@
-export const INTERVIEW_METRICS_VERSION =
-  "interview-metrics-v3";
+export const INTERVIEW_METRICS_VERSION = "interview-metrics-v3";
 
-export const INTERVIEW_SCORING_VERSION =
-  "interview-score-v4";
+export const INTERVIEW_SCORING_VERSION = "interview-score-v4";
 
 export const INTERVIEW_SCORING_CONFIG = {
   metricsVersion: INTERVIEW_METRICS_VERSION,
@@ -106,12 +104,9 @@ export const INTERVIEW_SCORING_CONFIG = {
   },
 } as const;
 
-export type CanonicalInterviewMode =
-  keyof typeof INTERVIEW_SCORING_CONFIG.topLevelWeights;
+export type CanonicalInterviewMode = keyof typeof INTERVIEW_SCORING_CONFIG.topLevelWeights;
 
-const INTERVIEW_MODE_ALIASES: Readonly<
-  Record<string, CanonicalInterviewMode>
-> = {
+const INTERVIEW_MODE_ALIASES: Readonly<Record<string, CanonicalInterviewMode>> = {
   text: "text",
   written: "text",
   typing: "text",
@@ -125,9 +120,7 @@ const INTERVIEW_MODE_ALIASES: Readonly<
   camera: "video",
 };
 
-export function normalizeInterviewMode(
-  mode?: string,
-): CanonicalInterviewMode {
+export function normalizeInterviewMode(mode?: string): CanonicalInterviewMode {
   const normalized = String(mode || "text")
     .trim()
     .toLowerCase();

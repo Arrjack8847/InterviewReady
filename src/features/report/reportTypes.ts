@@ -3,6 +3,7 @@ import type {
   FinalReport,
   InterviewMode,
   Question,
+  QuestionId,
   SpeechMetrics,
   VisualMetrics,
 } from "@/lib/types";
@@ -10,12 +11,7 @@ import type {
 export type ReportStatus = "complete" | "partially_complete" | "processing" | "empty";
 
 export type ReportAnswerStatus =
-  | "completed"
-  | "skipped"
-  | "empty"
-  | "evaluation_pending"
-  | "evaluation_failed"
-  | "legacy";
+  "completed" | "skipped" | "empty" | "evaluation_pending" | "evaluation_failed" | "legacy";
 
 export interface ReportSessionSource {
   id?: string;
@@ -37,7 +33,7 @@ export interface ReportSessionSource {
 
 export interface ReportAnswerSource {
   id?: string;
-  questionId: number;
+  questionId: QuestionId;
   questionText: string;
   answerText: string;
   evaluationStatus?: string;
@@ -105,7 +101,7 @@ export interface ReportPriority {
 
 export interface ReportAnswerReview {
   id: string;
-  questionId: number;
+  questionId: QuestionId;
   questionNumber: number;
   question: string;
   category: string;

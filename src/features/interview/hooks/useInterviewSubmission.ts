@@ -1,10 +1,6 @@
 import { useCallback, useState } from "react";
 import { analyzeInterviewAnswer } from "@/lib/api";
-import type {
-  Feedback,
-  InterviewModeValue,
-  Question,
-} from "@/lib/types";
+import type { Feedback, InterviewModeValue, Question } from "@/lib/types";
 import type { ExtendedInterviewSetup } from "../types";
 
 interface EvaluateAnswerOptions {
@@ -13,9 +9,7 @@ interface EvaluateAnswerOptions {
   setup: ExtendedInterviewSetup;
 }
 
-function normalizeInterviewMode(
-  mode: ExtendedInterviewSetup["mode"],
-): InterviewModeValue {
+function normalizeInterviewMode(mode: ExtendedInterviewSetup["mode"]): InterviewModeValue {
   const normalizedMode = String(mode || "")
     .trim()
     .toLowerCase();
@@ -40,11 +34,7 @@ export function useInterviewSubmission() {
   }, []);
 
   const evaluateAnswer = useCallback(
-    async ({
-      question,
-      answer,
-      setup,
-    }: EvaluateAnswerOptions): Promise<Feedback> => {
+    async ({ question, answer, setup }: EvaluateAnswerOptions): Promise<Feedback> => {
       setLoading(true);
       setError("");
 
@@ -57,49 +47,35 @@ export function useInterviewSubmission() {
             question.expectedFocus?.trim() ||
             "Give a clear, relevant answer supported by appropriate evidence.",
 
-          questionCategory:
-            question.category || setup.type,
+          questionCategory: question.category || setup.type,
 
           mode: normalizeInterviewMode(setup.mode),
 
           role: setup.role,
-          targetRole:
-            setup.targetRole?.trim() ||
-            setup.role,
+          targetRole: setup.targetRole?.trim() || setup.role,
 
           type: setup.type,
           difficulty: setup.difficulty,
 
-          targetCompany:
-            setup.targetCompany?.trim() || "",
+          targetCompany: setup.targetCompany?.trim() || "",
 
-          jobDescription:
-            setup.jobDescription?.trim() || "",
+          jobDescription: setup.jobDescription?.trim() || "",
 
-          resumeSummary:
-            setup.resumeSummary?.trim() || "",
+          resumeSummary: setup.resumeSummary?.trim() || "",
 
-          resumeSkills:
-            setup.resumeSkills || [],
+          resumeSkills: setup.resumeSkills || [],
 
-          resumeProjects:
-            setup.resumeProjects || [],
+          resumeProjects: setup.resumeProjects || [],
 
-          resumeEducation:
-            setup.resumeEducation?.trim() || "",
+          resumeEducation: setup.resumeEducation?.trim() || "",
 
-          companyContext:
-            setup.companyContext,
+          companyContext: setup.companyContext,
         });
       } catch (submissionError) {
-        console.error(
-          "AI answer feedback failed:",
-          submissionError,
-        );
+        console.error("AI answer feedback failed:", submissionError);
 
         const message =
-          submissionError instanceof Error &&
-          submissionError.message.trim()
+          submissionError instanceof Error && submissionError.message.trim()
             ? submissionError.message
             : "Answer evaluation failed. Your draft is preserved; please try again.";
 

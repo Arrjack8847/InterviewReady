@@ -641,23 +641,22 @@ function buildFallbackQuestions({
   const firstFocusArea = Array.isArray(companyContext?.interviewFocusAreas)
     ? companyContext.interviewFocusAreas[0]
     : "";
-  const experienceFocus =
-    {
-      Internship:
-        "coursework, projects, basic fundamentals, teamwork, willingness to learn, and potential",
-      Graduate:
-        "academic knowledge, placements, final-year projects, practical fundamentals, and career motivation",
-      "Entry Level":
-        "practical application, basic responsibility, communication, teamwork, and professional habits",
-      Junior:
-        "growing independence, troubleshooting, decision-making, and ownership of smaller tasks",
-      "Mid Level":
-        "independent work, difficult scenarios, measurable impact, cross-team communication, and professional judgement",
-      Senior:
-        "advanced judgement, complex decisions, mentoring, risk management, leadership, and significant impact",
-      Management:
-        "strategy, delegation, stakeholders, team performance, conflict management, prioritisation, and organisational outcomes",
-    }[difficulty] || "evidence appropriate to the selected experience level";
+  const experienceFocus = {
+    Internship:
+      "coursework, projects, basic fundamentals, teamwork, willingness to learn, and potential",
+    Graduate:
+      "academic knowledge, placements, final-year projects, practical fundamentals, and career motivation",
+    "Entry Level":
+      "practical application, basic responsibility, communication, teamwork, and professional habits",
+    Junior:
+      "growing independence, troubleshooting, decision-making, and ownership of smaller tasks",
+    "Mid Level":
+      "independent work, difficult scenarios, measurable impact, cross-team communication, and professional judgement",
+    Senior:
+      "advanced judgement, complex decisions, mentoring, risk management, leadership, and significant impact",
+    Management:
+      "strategy, delegation, stakeholders, team performance, conflict management, prioritisation, and organisational outcomes",
+  }[difficulty] || "evidence appropriate to the selected experience level";
 
   const screeningQuestions = [
     `Tell me about yourself and why you are interested in the ${role} role${
@@ -740,7 +739,8 @@ function buildFallbackQuestions({
     );
   }
 
-  const experienceQuestion = `For a ${difficulty} candidate, this role values ${experienceFocus}. Which evidence best demonstrates your current readiness?`;
+  const experienceQuestion =
+    `For a ${difficulty} candidate, this role values ${experienceFocus}. Which evidence best demonstrates your current readiness?`;
   let selectedQuestions;
 
   switch (type) {
@@ -775,12 +775,12 @@ function buildFallbackQuestions({
   return Array.from(new Set(selectedQuestions))
     .slice(0, Number(questionCount) || 5)
     .map((text, index) => ({
-      id: `fallback-${index + 1}`,
-      text,
-      category: type,
-      difficulty,
-      expectedFocus: `Give a clear, relevant answer using evidence appropriate to the ${difficulty} experience level.`,
-    }));
+    id: `fallback-${index + 1}`,
+    text,
+    category: type,
+    difficulty,
+    expectedFocus: `Give a clear, relevant answer using evidence appropriate to the ${difficulty} experience level.`,
+  }));
 }
 
 function getAnswerFeedbackScore(item, key) {
@@ -1067,10 +1067,16 @@ async function extractResumeTextFromBuffer(buffer, fileName = "") {
   throw new Error("Unsupported resume file type. Please upload a PDF or DOCX file.");
 }
 
-function buildLocalResumeAnalysis(extractedText, fileName = "") {
-  const text = String(extractedText || "");
+function buildLocalResumeAnalysis(
+  extractedText,
+  fileName = "",
+) {
+  const text = String(
+    extractedText || "",
+  );
 
-  const lowerText = text.toLowerCase();
+  const lowerText =
+    text.toLowerCase();
 
   const skillDefinitions = [
     {
@@ -1099,7 +1105,12 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
     },
     {
       label: "SQL",
-      keywords: ["sql", "mysql", "postgresql", "database"],
+      keywords: [
+        "sql",
+        "mysql",
+        "postgresql",
+        "database",
+      ],
     },
     {
       label: "Web Development",
@@ -1115,35 +1126,80 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
     },
     {
       label: "Data Analysis",
-      keywords: ["data analysis", "data analytics", "power bi", "tableau", "excel", "statistics"],
+      keywords: [
+        "data analysis",
+        "data analytics",
+        "power bi",
+        "tableau",
+        "excel",
+        "statistics",
+      ],
     },
     {
       label: "Machine Learning",
-      keywords: ["machine learning", "artificial intelligence", "deep learning"],
+      keywords: [
+        "machine learning",
+        "artificial intelligence",
+        "deep learning",
+      ],
     },
     {
       label: "Cybersecurity",
-      keywords: ["cybersecurity", "cyber security", "information security", "penetration testing"],
+      keywords: [
+        "cybersecurity",
+        "cyber security",
+        "information security",
+        "penetration testing",
+      ],
     },
     {
       label: "Networking",
-      keywords: ["networking", "network administration", "cisco", "tcp/ip"],
+      keywords: [
+        "networking",
+        "network administration",
+        "cisco",
+        "tcp/ip",
+      ],
     },
     {
       label: "Clinical Care",
-      keywords: ["clinical", "patient care", "diagnosis", "treatment", "medical", "medicine"],
+      keywords: [
+        "clinical",
+        "patient care",
+        "diagnosis",
+        "treatment",
+        "medical",
+        "medicine",
+      ],
     },
     {
       label: "Nursing",
-      keywords: ["nursing", "nurse", "patient monitoring", "ward"],
+      keywords: [
+        "nursing",
+        "nurse",
+        "patient monitoring",
+        "ward",
+      ],
     },
     {
       label: "Pharmacy",
-      keywords: ["pharmacy", "pharmacology", "medication", "dispensing"],
+      keywords: [
+        "pharmacy",
+        "pharmacology",
+        "medication",
+        "dispensing",
+      ],
     },
     {
       label: "Architecture",
-      keywords: ["architecture", "architectural", "building design", "autocad", "revit", "bim"],
+      keywords: [
+        "architecture",
+        "architectural",
+        "building design",
+        "autocad",
+        "revit",
+        "bim",
+      ],
     },
     {
       label: "Civil Engineering",
@@ -1167,155 +1223,379 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
     },
     {
       label: "Electrical Engineering",
-      keywords: ["electrical engineering", "electronics", "circuit", "power systems", "plc"],
+      keywords: [
+        "electrical engineering",
+        "electronics",
+        "circuit",
+        "power systems",
+        "plc",
+      ],
     },
     {
       label: "Accounting",
-      keywords: ["accounting", "bookkeeping", "financial reporting", "audit", "taxation"],
+      keywords: [
+        "accounting",
+        "bookkeeping",
+        "financial reporting",
+        "audit",
+        "taxation",
+      ],
     },
     {
       label: "Finance",
-      keywords: ["finance", "financial analysis", "investment", "banking", "budgeting"],
+      keywords: [
+        "finance",
+        "financial analysis",
+        "investment",
+        "banking",
+        "budgeting",
+      ],
     },
     {
       label: "Marketing",
-      keywords: ["marketing", "digital marketing", "social media", "seo", "campaign"],
+      keywords: [
+        "marketing",
+        "digital marketing",
+        "social media",
+        "seo",
+        "campaign",
+      ],
     },
     {
       label: "Sales",
-      keywords: ["sales", "business development", "customer acquisition", "negotiation"],
+      keywords: [
+        "sales",
+        "business development",
+        "customer acquisition",
+        "negotiation",
+      ],
     },
     {
       label: "Human Resources",
-      keywords: ["human resources", "recruitment", "talent acquisition", "employee relations"],
+      keywords: [
+        "human resources",
+        "recruitment",
+        "talent acquisition",
+        "employee relations",
+      ],
     },
     {
       label: "Education",
-      keywords: ["teaching", "teacher", "education", "lesson planning", "curriculum"],
+      keywords: [
+        "teaching",
+        "teacher",
+        "education",
+        "lesson planning",
+        "curriculum",
+      ],
     },
     {
       label: "Legal Research",
-      keywords: ["law", "legal research", "litigation", "contract law", "legal drafting"],
+      keywords: [
+        "law",
+        "legal research",
+        "litigation",
+        "contract law",
+        "legal drafting",
+      ],
     },
     {
       label: "Graphic Design",
-      keywords: ["graphic design", "photoshop", "illustrator", "visual design"],
+      keywords: [
+        "graphic design",
+        "photoshop",
+        "illustrator",
+        "visual design",
+      ],
     },
     {
       label: "UI/UX Design",
-      keywords: ["ui/ux", "user interface", "user experience", "figma", "wireframe"],
+      keywords: [
+        "ui/ux",
+        "user interface",
+        "user experience",
+        "figma",
+        "wireframe",
+      ],
     },
     {
       label: "Hospitality",
-      keywords: ["hospitality", "hotel", "guest service", "front office", "food and beverage"],
+      keywords: [
+        "hospitality",
+        "hotel",
+        "guest service",
+        "front office",
+        "food and beverage",
+      ],
     },
     {
       label: "Supply Chain",
-      keywords: ["supply chain", "logistics", "procurement", "inventory", "warehouse"],
+      keywords: [
+        "supply chain",
+        "logistics",
+        "procurement",
+        "inventory",
+        "warehouse",
+      ],
     },
     {
       label: "Project Management",
-      keywords: ["project management", "project coordination", "agile", "scrum"],
+      keywords: [
+        "project management",
+        "project coordination",
+        "agile",
+        "scrum",
+      ],
     },
     {
       label: "Communication",
-      keywords: ["communication", "presentation", "public speaking"],
+      keywords: [
+        "communication",
+        "presentation",
+        "public speaking",
+      ],
     },
     {
       label: "Leadership",
-      keywords: ["leadership", "team leader", "managed a team", "supervised"],
+      keywords: [
+        "leadership",
+        "team leader",
+        "managed a team",
+        "supervised",
+      ],
     },
   ];
 
-  const parsedSkills = skillDefinitions
-    .filter((skill) => skill.keywords.some((keyword) => lowerText.includes(keyword.toLowerCase())))
-    .map((skill) => skill.label);
+  const parsedSkills =
+    skillDefinitions
+      .filter((skill) =>
+        skill.keywords.some(
+          (keyword) =>
+            lowerText.includes(
+              keyword.toLowerCase(),
+            ),
+        ),
+      )
+      .map((skill) => skill.label);
 
   const parsedProjects = [];
 
-  if (lowerText.includes("project")) {
-    parsedProjects.push("Project experience mentioned in the résumé");
+  if (
+    lowerText.includes("project")
+  ) {
+    parsedProjects.push(
+      "Project experience mentioned in the résumé",
+    );
   }
 
-  if (lowerText.includes("research")) {
-    parsedProjects.push("Research experience mentioned in the résumé");
+  if (
+    lowerText.includes("research")
+  ) {
+    parsedProjects.push(
+      "Research experience mentioned in the résumé",
+    );
   }
 
-  if (lowerText.includes("internship") || lowerText.includes("intern ")) {
-    parsedProjects.push("Internship or placement experience mentioned in the résumé");
+  if (
+    lowerText.includes("internship") ||
+    lowerText.includes("intern ")
+  ) {
+    parsedProjects.push(
+      "Internship or placement experience mentioned in the résumé",
+    );
   }
 
-  if (lowerText.includes("volunteer")) {
-    parsedProjects.push("Volunteer experience mentioned in the résumé");
+  if (
+    lowerText.includes("volunteer")
+  ) {
+    parsedProjects.push(
+      "Volunteer experience mentioned in the résumé",
+    );
   }
 
-  if (lowerText.includes("clinical")) {
-    parsedProjects.push("Clinical or healthcare experience mentioned in the résumé");
+  if (
+    lowerText.includes("clinical")
+  ) {
+    parsedProjects.push(
+      "Clinical or healthcare experience mentioned in the résumé",
+    );
   }
 
-  if (lowerText.includes("portfolio")) {
-    parsedProjects.push("Portfolio work mentioned in the résumé");
+  if (
+    lowerText.includes("portfolio")
+  ) {
+    parsedProjects.push(
+      "Portfolio work mentioned in the résumé",
+    );
   }
 
   const parsedEducation =
-    lowerText.includes("phd") || lowerText.includes("doctorate")
+    lowerText.includes("phd") ||
+    lowerText.includes("doctorate")
       ? "Doctoral-level education detected"
       : lowerText.includes("master")
         ? "Master's-level education detected"
-        : lowerText.includes("bachelor") || lowerText.includes("degree")
+        : lowerText.includes("bachelor") ||
+            lowerText.includes("degree")
           ? "Degree-level education detected"
           : lowerText.includes("diploma")
             ? "Diploma-level education detected"
-            : lowerText.includes("certificate")
+            : lowerText.includes(
+                  "certificate",
+                )
               ? "Certificate-level education detected"
-              : lowerText.includes("university") || lowerText.includes("college")
+              : lowerText.includes(
+                    "university",
+                  ) ||
+                  lowerText.includes(
+                    "college",
+                  )
                 ? "College or university education detected"
                 : "Education details were not clearly detected";
 
   const careerLevel =
-    lowerText.includes("senior manager") ||
-    lowerText.includes("head of") ||
-    lowerText.includes("director")
+    lowerText.includes(
+      "senior manager",
+    ) ||
+    lowerText.includes(
+      "head of",
+    ) ||
+    lowerText.includes(
+      "director",
+    )
       ? "Management"
-      : lowerText.includes("senior")
+      : lowerText.includes(
+            "senior",
+          )
         ? "Senior"
-        : lowerText.includes("manager") || lowerText.includes("supervisor")
+        : lowerText.includes(
+              "manager",
+            ) ||
+            lowerText.includes(
+              "supervisor",
+            )
           ? "Management"
-          : lowerText.includes("mid-level") || lowerText.includes("mid level")
+          : lowerText.includes(
+                "mid-level",
+              ) ||
+              lowerText.includes(
+                "mid level",
+              )
             ? "Mid Level"
-            : lowerText.includes("junior")
+            : lowerText.includes(
+                  "junior",
+                )
               ? "Junior"
-              : lowerText.includes("graduate") || lowerText.includes("fresh graduate")
+              : lowerText.includes(
+                    "graduate",
+                  ) ||
+                  lowerText.includes(
+                    "fresh graduate",
+                  )
                 ? "Graduate"
-                : lowerText.includes("internship") ||
-                    lowerText.includes("intern ") ||
-                    lowerText.includes("student")
+                : lowerText.includes(
+                      "internship",
+                    ) ||
+                    lowerText.includes(
+                      "intern ",
+                    ) ||
+                    lowerText.includes(
+                      "student",
+                    )
                   ? "Internship"
                   : "Entry Level";
 
   const careerProfiles = [
     {
-      keywords: ["doctor", "medical officer", "medicine", "clinical", "patient", "hospital"],
-      roles: ["Medical Officer", "Clinical Assistant", "Healthcare Officer"],
-      companyTypes: ["Hospital", "Clinic", "Healthcare organisation", "Medical centre"],
-      focusAreas: ["Clinical reasoning", "Patient communication", "Medical ethics and safety"],
+      keywords: [
+        "doctor",
+        "medical officer",
+        "medicine",
+        "clinical",
+        "patient",
+        "hospital",
+      ],
+      roles: [
+        "Medical Officer",
+        "Clinical Assistant",
+        "Healthcare Officer",
+      ],
+      companyTypes: [
+        "Hospital",
+        "Clinic",
+        "Healthcare organisation",
+        "Medical centre",
+      ],
+      focusAreas: [
+        "Clinical reasoning",
+        "Patient communication",
+        "Medical ethics and safety",
+      ],
     },
     {
-      keywords: ["nurse", "nursing", "patient care", "ward"],
-      roles: ["Registered Nurse", "Staff Nurse", "Healthcare Assistant"],
-      companyTypes: ["Hospital", "Clinic", "Community healthcare provider"],
-      focusAreas: ["Patient care", "Clinical communication", "Teamwork and safety"],
+      keywords: [
+        "nurse",
+        "nursing",
+        "patient care",
+        "ward",
+      ],
+      roles: [
+        "Registered Nurse",
+        "Staff Nurse",
+        "Healthcare Assistant",
+      ],
+      companyTypes: [
+        "Hospital",
+        "Clinic",
+        "Community healthcare provider",
+      ],
+      focusAreas: [
+        "Patient care",
+        "Clinical communication",
+        "Teamwork and safety",
+      ],
     },
     {
-      keywords: ["pharmacy", "pharmacology", "pharmacist", "medication"],
-      roles: ["Pharmacist", "Pharmacy Assistant", "Clinical Pharmacy Assistant"],
-      companyTypes: ["Hospital pharmacy", "Community pharmacy", "Pharmaceutical company"],
-      focusAreas: ["Medication safety", "Patient counselling", "Pharmaceutical knowledge"],
+      keywords: [
+        "pharmacy",
+        "pharmacology",
+        "pharmacist",
+        "medication",
+      ],
+      roles: [
+        "Pharmacist",
+        "Pharmacy Assistant",
+        "Clinical Pharmacy Assistant",
+      ],
+      companyTypes: [
+        "Hospital pharmacy",
+        "Community pharmacy",
+        "Pharmaceutical company",
+      ],
+      focusAreas: [
+        "Medication safety",
+        "Patient counselling",
+        "Pharmaceutical knowledge",
+      ],
     },
     {
-      keywords: ["architecture", "architectural", "revit", "autocad", "bim"],
-      roles: ["Architectural Assistant", "Junior Architect", "BIM Modeler"],
-      companyTypes: ["Architecture firm", "Property developer", "Construction consultancy"],
+      keywords: [
+        "architecture",
+        "architectural",
+        "revit",
+        "autocad",
+        "bim",
+      ],
+      roles: [
+        "Architectural Assistant",
+        "Junior Architect",
+        "BIM Modeler",
+      ],
+      companyTypes: [
+        "Architecture firm",
+        "Property developer",
+        "Construction consultancy",
+      ],
       focusAreas: [
         "Portfolio explanation",
         "Design process",
@@ -1323,9 +1603,22 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
       ],
     },
     {
-      keywords: ["civil engineering", "structural engineering", "construction", "site engineer"],
-      roles: ["Graduate Civil Engineer", "Site Engineer", "Structural Engineering Assistant"],
-      companyTypes: ["Construction company", "Engineering consultancy", "Infrastructure company"],
+      keywords: [
+        "civil engineering",
+        "structural engineering",
+        "construction",
+        "site engineer",
+      ],
+      roles: [
+        "Graduate Civil Engineer",
+        "Site Engineer",
+        "Structural Engineering Assistant",
+      ],
+      companyTypes: [
+        "Construction company",
+        "Engineering consultancy",
+        "Infrastructure company",
+      ],
       focusAreas: [
         "Engineering fundamentals",
         "Safety and site scenarios",
@@ -1333,21 +1626,70 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
       ],
     },
     {
-      keywords: ["mechanical engineering", "solidworks", "thermodynamics", "manufacturing"],
-      roles: ["Graduate Mechanical Engineer", "Maintenance Engineer", "Mechanical Design Engineer"],
-      companyTypes: ["Engineering company", "Manufacturing company", "Industrial services company"],
-      focusAreas: ["Mechanical fundamentals", "Troubleshooting", "Safety and maintenance"],
+      keywords: [
+        "mechanical engineering",
+        "solidworks",
+        "thermodynamics",
+        "manufacturing",
+      ],
+      roles: [
+        "Graduate Mechanical Engineer",
+        "Maintenance Engineer",
+        "Mechanical Design Engineer",
+      ],
+      companyTypes: [
+        "Engineering company",
+        "Manufacturing company",
+        "Industrial services company",
+      ],
+      focusAreas: [
+        "Mechanical fundamentals",
+        "Troubleshooting",
+        "Safety and maintenance",
+      ],
     },
     {
-      keywords: ["electrical engineering", "electronics", "circuit", "power system", "plc"],
-      roles: ["Graduate Electrical Engineer", "Electrical Engineer", "Electronics Engineer"],
-      companyTypes: ["Engineering consultancy", "Energy company", "Electronics manufacturer"],
-      focusAreas: ["Electrical fundamentals", "Safety", "Testing and troubleshooting"],
+      keywords: [
+        "electrical engineering",
+        "electronics",
+        "circuit",
+        "power system",
+        "plc",
+      ],
+      roles: [
+        "Graduate Electrical Engineer",
+        "Electrical Engineer",
+        "Electronics Engineer",
+      ],
+      companyTypes: [
+        "Engineering consultancy",
+        "Energy company",
+        "Electronics manufacturer",
+      ],
+      focusAreas: [
+        "Electrical fundamentals",
+        "Safety",
+        "Testing and troubleshooting",
+      ],
     },
     {
-      keywords: ["react", "javascript", "typescript", "software development", "web development"],
-      roles: ["Frontend Developer", "Software Developer", "Web Developer"],
-      companyTypes: ["Software company", "Digital agency", "Technology startup"],
+      keywords: [
+        "react",
+        "javascript",
+        "typescript",
+        "software development",
+        "web development",
+      ],
+      roles: [
+        "Frontend Developer",
+        "Software Developer",
+        "Web Developer",
+      ],
+      companyTypes: [
+        "Software company",
+        "Digital agency",
+        "Technology startup",
+      ],
       focusAreas: [
         "Project explanation",
         "Programming fundamentals",
@@ -1355,63 +1697,230 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
       ],
     },
     {
-      keywords: ["data analysis", "power bi", "tableau", "statistics", "machine learning"],
-      roles: ["Data Analyst", "Business Intelligence Analyst", "Junior Data Scientist"],
-      companyTypes: ["Analytics company", "Financial institution", "Technology company"],
-      focusAreas: ["Data interpretation", "Analytical projects", "Business communication"],
+      keywords: [
+        "data analysis",
+        "power bi",
+        "tableau",
+        "statistics",
+        "machine learning",
+      ],
+      roles: [
+        "Data Analyst",
+        "Business Intelligence Analyst",
+        "Junior Data Scientist",
+      ],
+      companyTypes: [
+        "Analytics company",
+        "Financial institution",
+        "Technology company",
+      ],
+      focusAreas: [
+        "Data interpretation",
+        "Analytical projects",
+        "Business communication",
+      ],
     },
     {
-      keywords: ["cybersecurity", "cyber security", "information security", "network security"],
-      roles: ["Cybersecurity Analyst", "SOC Analyst", "Information Security Assistant"],
-      companyTypes: ["Cybersecurity company", "Financial institution", "Technology company"],
-      focusAreas: ["Security fundamentals", "Incident scenarios", "Risk awareness"],
+      keywords: [
+        "cybersecurity",
+        "cyber security",
+        "information security",
+        "network security",
+      ],
+      roles: [
+        "Cybersecurity Analyst",
+        "SOC Analyst",
+        "Information Security Assistant",
+      ],
+      companyTypes: [
+        "Cybersecurity company",
+        "Financial institution",
+        "Technology company",
+      ],
+      focusAreas: [
+        "Security fundamentals",
+        "Incident scenarios",
+        "Risk awareness",
+      ],
     },
     {
-      keywords: ["accounting", "audit", "taxation", "bookkeeping"],
-      roles: ["Junior Accountant", "Audit Associate", "Accounts Executive"],
-      companyTypes: ["Accounting firm", "Audit firm", "Corporate finance department"],
-      focusAreas: ["Accounting fundamentals", "Accuracy and compliance", "Professional judgement"],
+      keywords: [
+        "accounting",
+        "audit",
+        "taxation",
+        "bookkeeping",
+      ],
+      roles: [
+        "Junior Accountant",
+        "Audit Associate",
+        "Accounts Executive",
+      ],
+      companyTypes: [
+        "Accounting firm",
+        "Audit firm",
+        "Corporate finance department",
+      ],
+      focusAreas: [
+        "Accounting fundamentals",
+        "Accuracy and compliance",
+        "Professional judgement",
+      ],
     },
     {
-      keywords: ["finance", "banking", "investment", "financial analysis"],
-      roles: ["Financial Analyst", "Banking Operations Executive", "Finance Executive"],
-      companyTypes: ["Bank", "Financial services company", "Corporate finance department"],
-      focusAreas: ["Financial reasoning", "Risk awareness", "Client and stakeholder communication"],
+      keywords: [
+        "finance",
+        "banking",
+        "investment",
+        "financial analysis",
+      ],
+      roles: [
+        "Financial Analyst",
+        "Banking Operations Executive",
+        "Finance Executive",
+      ],
+      companyTypes: [
+        "Bank",
+        "Financial services company",
+        "Corporate finance department",
+      ],
+      focusAreas: [
+        "Financial reasoning",
+        "Risk awareness",
+        "Client and stakeholder communication",
+      ],
     },
     {
-      keywords: ["marketing", "social media", "seo", "campaign"],
-      roles: ["Marketing Executive", "Digital Marketing Executive", "Social Media Executive"],
-      companyTypes: ["Marketing agency", "Consumer brand", "E-commerce company"],
-      focusAreas: ["Campaign planning", "Audience understanding", "Marketing performance"],
+      keywords: [
+        "marketing",
+        "social media",
+        "seo",
+        "campaign",
+      ],
+      roles: [
+        "Marketing Executive",
+        "Digital Marketing Executive",
+        "Social Media Executive",
+      ],
+      companyTypes: [
+        "Marketing agency",
+        "Consumer brand",
+        "E-commerce company",
+      ],
+      focusAreas: [
+        "Campaign planning",
+        "Audience understanding",
+        "Marketing performance",
+      ],
     },
     {
-      keywords: ["teaching", "teacher", "education", "curriculum"],
-      roles: ["Teacher", "Teaching Assistant", "Education Coordinator"],
-      companyTypes: ["School", "College", "Education centre"],
-      focusAreas: ["Lesson planning", "Student communication", "Classroom scenarios"],
+      keywords: [
+        "teaching",
+        "teacher",
+        "education",
+        "curriculum",
+      ],
+      roles: [
+        "Teacher",
+        "Teaching Assistant",
+        "Education Coordinator",
+      ],
+      companyTypes: [
+        "School",
+        "College",
+        "Education centre",
+      ],
+      focusAreas: [
+        "Lesson planning",
+        "Student communication",
+        "Classroom scenarios",
+      ],
     },
     {
-      keywords: ["law", "legal", "litigation", "contract law"],
-      roles: ["Legal Assistant", "Paralegal", "Legal Executive"],
-      companyTypes: ["Law firm", "Corporate legal department", "Government legal service"],
-      focusAreas: ["Legal research", "Professional ethics", "Written and verbal communication"],
+      keywords: [
+        "law",
+        "legal",
+        "litigation",
+        "contract law",
+      ],
+      roles: [
+        "Legal Assistant",
+        "Paralegal",
+        "Legal Executive",
+      ],
+      companyTypes: [
+        "Law firm",
+        "Corporate legal department",
+        "Government legal service",
+      ],
+      focusAreas: [
+        "Legal research",
+        "Professional ethics",
+        "Written and verbal communication",
+      ],
     },
     {
-      keywords: ["graphic design", "photoshop", "illustrator", "visual design"],
-      roles: ["Graphic Designer", "Junior Visual Designer", "Creative Designer"],
-      companyTypes: ["Creative agency", "Marketing agency", "Media company"],
-      focusAreas: ["Portfolio explanation", "Design decisions", "Client feedback"],
+      keywords: [
+        "graphic design",
+        "photoshop",
+        "illustrator",
+        "visual design",
+      ],
+      roles: [
+        "Graphic Designer",
+        "Junior Visual Designer",
+        "Creative Designer",
+      ],
+      companyTypes: [
+        "Creative agency",
+        "Marketing agency",
+        "Media company",
+      ],
+      focusAreas: [
+        "Portfolio explanation",
+        "Design decisions",
+        "Client feedback",
+      ],
     },
     {
-      keywords: ["hospitality", "hotel", "guest service", "front office"],
-      roles: ["Guest Services Executive", "Hotel Front Office Assistant", "Hospitality Executive"],
-      companyTypes: ["Hotel", "Resort", "Hospitality company"],
-      focusAreas: ["Guest service", "Complaint handling", "Communication and teamwork"],
+      keywords: [
+        "hospitality",
+        "hotel",
+        "guest service",
+        "front office",
+      ],
+      roles: [
+        "Guest Services Executive",
+        "Hotel Front Office Assistant",
+        "Hospitality Executive",
+      ],
+      companyTypes: [
+        "Hotel",
+        "Resort",
+        "Hospitality company",
+      ],
+      focusAreas: [
+        "Guest service",
+        "Complaint handling",
+        "Communication and teamwork",
+      ],
     },
     {
-      keywords: ["supply chain", "logistics", "procurement", "inventory"],
-      roles: ["Logistics Coordinator", "Supply Chain Executive", "Procurement Assistant"],
-      companyTypes: ["Logistics company", "Manufacturing company", "Distribution company"],
+      keywords: [
+        "supply chain",
+        "logistics",
+        "procurement",
+        "inventory",
+      ],
+      roles: [
+        "Logistics Coordinator",
+        "Supply Chain Executive",
+        "Procurement Assistant",
+      ],
+      companyTypes: [
+        "Logistics company",
+        "Manufacturing company",
+        "Distribution company",
+      ],
       focusAreas: [
         "Operational problem solving",
         "Inventory and planning",
@@ -1420,23 +1929,50 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
     },
   ];
 
-  const matchedProfiles = careerProfiles.filter((profile) =>
-    profile.keywords.some((keyword) => lowerText.includes(keyword.toLowerCase())),
-  );
+  const matchedProfiles =
+    careerProfiles.filter(
+      (profile) =>
+        profile.keywords.some(
+          (keyword) =>
+            lowerText.includes(
+              keyword.toLowerCase(),
+            ),
+        ),
+    );
 
-  const recommendedRoles = Array.from(
-    new Set(matchedProfiles.flatMap((profile) => profile.roles)),
-  ).slice(0, 5);
+  const recommendedRoles =
+    Array.from(
+      new Set(
+        matchedProfiles.flatMap(
+          (profile) =>
+            profile.roles,
+        ),
+      ),
+    ).slice(0, 5);
 
-  const recommendedCompanyTypes = Array.from(
-    new Set(matchedProfiles.flatMap((profile) => profile.companyTypes)),
-  ).slice(0, 5);
+  const recommendedCompanyTypes =
+    Array.from(
+      new Set(
+        matchedProfiles.flatMap(
+          (profile) =>
+            profile.companyTypes,
+        ),
+      ),
+    ).slice(0, 5);
 
-  const interviewFocusAreas = Array.from(
-    new Set(matchedProfiles.flatMap((profile) => profile.focusAreas)),
-  ).slice(0, 6);
+  const interviewFocusAreas =
+    Array.from(
+      new Set(
+        matchedProfiles.flatMap(
+          (profile) =>
+            profile.focusAreas,
+        ),
+      ),
+    ).slice(0, 6);
 
-  if (recommendedRoles.length === 0) {
+  if (
+    recommendedRoles.length === 0
+  ) {
     recommendedRoles.push(
       "Role aligned with the candidate's professional field",
       "Role aligned with the candidate's strongest skills",
@@ -1444,7 +1980,10 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
     );
   }
 
-  if (recommendedCompanyTypes.length === 0) {
+  if (
+    recommendedCompanyTypes.length ===
+    0
+  ) {
     recommendedCompanyTypes.push(
       "Organisation related to the candidate's field",
       "Professional services company",
@@ -1452,7 +1991,10 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
     );
   }
 
-  if (interviewFocusAreas.length === 0) {
+  if (
+    interviewFocusAreas.length ===
+    0
+  ) {
     interviewFocusAreas.push(
       "Explain relevant experience clearly",
       "Prepare role-specific examples",
@@ -1466,7 +2008,10 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
 
     parsedSkills,
 
-    parsedProjects: Array.from(new Set(parsedProjects)),
+    parsedProjects:
+      Array.from(
+        new Set(parsedProjects),
+      ),
 
     parsedEducation,
 
@@ -1476,8 +2021,14 @@ function buildLocalResumeAnalysis(extractedText, fileName = "") {
 
     strongAreas:
       parsedSkills.length > 0
-        ? [`The résumé shows relevant skills including ${parsedSkills.slice(0, 4).join(", ")}.`]
-        : ["The résumé contains candidate information that can be used for interview preparation."],
+        ? [
+            `The résumé shows relevant skills including ${parsedSkills
+              .slice(0, 4)
+              .join(", ")}.`,
+          ]
+        : [
+            "The résumé contains candidate information that can be used for interview preparation.",
+          ],
 
     weakAreas: [
       "Add measurable achievements where possible.",
@@ -1513,7 +2064,10 @@ function normalizeResumeAnalysis(parsed, extractedText, fileName = "") {
           ? parsed.parsedEducation
           : "",
     parsedExperience: asStringArray(parsed.experience || parsed.parsedExperience, []),
-    careerLevel: typeof parsed.careerLevel === "string" ? parsed.careerLevel : "Entry Level",
+    careerLevel:
+      typeof parsed.careerLevel === "string"
+        ? parsed.careerLevel
+        : "Entry Level",
     strongAreas: asStringArray(parsed.strongAreas || parsed.strengths, []),
     weakAreas: asStringArray(parsed.weakAreas || parsed.weaknesses || parsed.improvements, []),
     recommendedRoles: asStringArray(parsed.recommendedRoles, []),
@@ -2147,9 +2701,7 @@ app.post(
 
     const finalRole = String(targetRole || role).trim() || "the target role";
     const candidateLevel = String(difficulty || "Internship").trim();
-    const normalizedMode = String(mode || "text")
-      .trim()
-      .toLowerCase();
+    const normalizedMode = String(mode || "text").trim().toLowerCase();
     const speechToText = normalizedMode === "voice" || normalizedMode === "video";
     const normalizedInput = normalizeAnswerInput(answer);
     const deterministicEvaluation = buildDeterministicEvaluation({
@@ -2416,7 +2968,8 @@ app.post(
       mode = "text",
     } = req.body;
 
-    const finalRole = String(targetRole || role).trim() || "the target role";
+    const finalRole =
+      String(targetRole || role).trim() || "the target role";
 
     const answerScoreSummary = getAnswerScoreSummary(Array.isArray(answers) ? answers : []);
 
@@ -2701,78 +3254,98 @@ app.post(
       });
     }
 
-    const cleanRecommendedRoles = asStringArray(recommendedRoles)
-      .map((role) => role.trim())
-      .filter(Boolean)
-      .slice(0, 5);
+    const cleanRecommendedRoles =
+  asStringArray(recommendedRoles)
+    .map((role) => role.trim())
+    .filter(Boolean)
+    .slice(0, 5);
 
-    const cleanRecommendedCompanyTypes = asStringArray(recommendedCompanyTypes)
-      .map((companyType) => companyType.trim())
-      .filter(Boolean)
-      .slice(0, 6);
+const cleanRecommendedCompanyTypes =
+  asStringArray(recommendedCompanyTypes)
+    .map((companyType) =>
+      companyType.trim(),
+    )
+    .filter(Boolean)
+    .slice(0, 6);
 
-    const fallbackRoleNames =
-      cleanRecommendedRoles.length > 0
-        ? cleanRecommendedRoles
-        : [
-            "Role aligned with the candidate's professional field",
-            "Role aligned with the candidate's strongest skills",
-            "Transferable-skills role appropriate to the candidate's experience level",
-          ];
+const fallbackRoleNames =
+  cleanRecommendedRoles.length > 0
+    ? cleanRecommendedRoles
+    : [
+        "Role aligned with the candidate's professional field",
+        "Role aligned with the candidate's strongest skills",
+        "Transferable-skills role appropriate to the candidate's experience level",
+      ];
 
-    const fallbackCompanyTypes =
-      cleanRecommendedCompanyTypes.length > 0
-        ? cleanRecommendedCompanyTypes
-        : [
-            "Organisation related to the candidate's professional field",
-            "Professional services organisation",
-            "Employer with development appropriate to the candidate's experience level",
-          ];
+const fallbackCompanyTypes =
+  cleanRecommendedCompanyTypes.length > 0
+    ? cleanRecommendedCompanyTypes
+    : [
+        "Organisation related to the candidate's professional field",
+        "Professional services organisation",
+        "Employer with development appropriate to the candidate's experience level",
+      ];
 
-    const fallbackRecommendedRoles = fallbackRoleNames.map((roleName, index) => ({
+const fallbackRecommendedRoles =
+  fallbackRoleNames.map(
+    (roleName, index) => ({
       role: roleName,
 
-      matchScore: Math.max(60, 84 - index * 6),
+      matchScore: Math.max(
+        60,
+        84 - index * 6,
+      ),
 
       reason:
         cleanRecommendedRoles.length > 0
           ? `This role was identified from the candidate's résumé analysis and appears relevant to their skills, education, projects, or experience.`
           : `This is a general career option while more profession-specific résumé information is unavailable.`,
-    }));
+    }),
+  );
 
-    const fallbackSuggestedCompanies = fallbackCompanyTypes.map((companyType, index) => ({
+const fallbackSuggestedCompanies =
+  fallbackCompanyTypes.map(
+    (companyType, index) => ({
       name: companyType,
 
       type: companyType,
 
-      matchScore: Math.max(60, 82 - index * 5),
+      matchScore: Math.max(
+        60,
+        82 - index * 5,
+      ),
 
       reason:
-        cleanRecommendedCompanyTypes.length > 0
+        cleanRecommendedCompanyTypes.length >
+        0
           ? `This type of organisation was identified as relevant to the candidate's résumé and recommended career direction.`
           : `This type of organisation may offer opportunities related to the candidate's education, transferable skills, and career goals.`,
-    }));
+    }),
+  );
 
-    const fallback = {
-      recommendedRoles: fallbackRecommendedRoles,
+const fallback = {
+  recommendedRoles:
+    fallbackRecommendedRoles,
 
-      recommendedCompanyTypes: fallbackCompanyTypes,
+  recommendedCompanyTypes:
+    fallbackCompanyTypes,
 
-      suggestedCompanies: fallbackSuggestedCompanies,
+  suggestedCompanies:
+    fallbackSuggestedCompanies,
 
-      interviewFocusAreas: [
-        "Explain how your background matches the target role.",
-        "Prepare examples from work, education, placements, projects, training, or volunteering.",
-        "Practice role-specific, behavioral, and situational questions.",
-        "Explain why the selected organisation or professional field interests you.",
-        "Prepare questions to ask the interviewer about the role and organisation.",
-      ],
+  interviewFocusAreas: [
+    "Explain how your background matches the target role.",
+    "Prepare examples from work, education, placements, projects, training, or volunteering.",
+    "Practice role-specific, behavioral, and situational questions.",
+    "Explain why the selected organisation or professional field interests you.",
+    "Prepare questions to ask the interviewer about the role and organisation.",
+  ],
 
-      source: "local-fallback",
+  source: "local-fallback",
 
-      warning:
-        "AI is disabled or unavailable. Recommendations were created from the available résumé analysis.",
-    };
+  warning:
+    "AI is disabled or unavailable. Recommendations were created from the available résumé analysis.",
+};
 
     if (!shouldUseAi("company_recommendation")) {
       return res.json(fallback);

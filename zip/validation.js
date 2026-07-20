@@ -286,9 +286,12 @@ export const requestSchemas = {
       targetLocation: shortText.optional().default(""),
     })
     .strict()
-    .refine((value) => value.resumeSummary.length > 0 || value.resumeSkills.length > 0, {
-      message: "Resume summary or skills are required.",
-    }),
+    .refine(
+      (value) => value.resumeSummary.length > 0 || value.resumeSkills.length > 0,
+      {
+        message: "Resume summary or skills are required.",
+      },
+    ),
 };
 
 export function validateBody(schema) {

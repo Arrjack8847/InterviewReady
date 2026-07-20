@@ -153,7 +153,9 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
     }
 
     if (error instanceof TypeError) {
-      throw new Error("Could not reach the interview server. Check your connection and try again.");
+      throw new Error(
+        "Could not reach the interview server. Check your connection and try again.",
+      );
     }
 
     throw error;

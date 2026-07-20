@@ -1,9 +1,5 @@
 export type QuestionScoringProfile =
-  | "behavioral"
-  | "technical"
-  | "situational"
-  | "motivational"
-  | "general";
+  "behavioral" | "technical" | "situational" | "motivational" | "general";
 
 export interface MetricValue {
   /** Normalized coaching score on a 0-100 scale. */
@@ -84,7 +80,7 @@ export interface AnswerScoreBreakdown {
 }
 
 export interface AnswerInterviewMetrics {
-  questionId: number;
+  questionId: QuestionId;
   questionProfile: QuestionScoringProfile;
   status: "completed" | "skipped" | "evaluation_unavailable";
   answerQuality?: AnswerQualityMetrics;
@@ -96,7 +92,7 @@ export interface SessionInterviewMetrics {
   metricsVersion: string;
   scoringVersion: string;
   answers: AnswerInterviewMetrics[];
-  skippedQuestionIds: number[];
+  skippedQuestionIds: QuestionId[];
   answerQuality?: AnswerQualityMetrics;
   speechDelivery?: CanonicalSpeechDeliveryMetrics;
   visualPresentation?: CanonicalVisualPresentationMetrics;
@@ -166,3 +162,4 @@ export interface PersistedAnswerMetrics {
 }
 
 export type MetricMap = Record<string, MetricValue | undefined>;
+import type { QuestionId } from "@/lib/types";

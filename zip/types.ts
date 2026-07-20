@@ -166,7 +166,11 @@ export interface CompanyContext {
   interviewFocusAreas: string[];
   sourceUrls: string[];
 
-  source: "web-ai" | "web-fallback" | "fallback" | string;
+  source:
+    | "web-ai"
+    | "web-fallback"
+    | "fallback"
+    | string;
 
   provider?: string;
   model?: string;
@@ -215,28 +219,23 @@ export interface InterviewSetup {
 }
 
 export type EvaluationQuestionType =
-  "technical" | "behavioural" | "situational" | "motivational" | "general";
+  | "technical"
+  | "behavioural"
+  | "situational"
+  | "motivational"
+  | "general";
 
 /**
  * Question metadata must survive from question generation through answer
  * submission. The evaluator uses these fields to apply a question-specific
  * rubric instead of judging every answer with the same generic criteria.
  */
-export type QuestionId = string | number;
-
-export function getQuestionIdentityKey(questionId: QuestionId): string {
-  const value = String(questionId).trim();
-  const numericSuffix = value.match(/(\d+)(?!.*\d)/);
-
-  return numericSuffix ? `number:${Number(numericSuffix[1])}` : `text:${value}`;
-}
-
 export interface Question {
   /**
    * AI-generated and fallback questions use string IDs such as `q-1` and
    * `fallback-1`, while older saved sessions may still contain numeric IDs.
    */
-  id: QuestionId;
+  id: string | number;
 
   text: string;
 
@@ -268,11 +267,19 @@ export interface Feedback {
   professionalismScore?: number;
 
   answerValidity?:
-    "meaningful" | "partially_meaningful" | "unrelated" | "non_answer" | "nonsense" | "blank";
+    | "meaningful"
+    | "partially_meaningful"
+    | "unrelated"
+    | "non_answer"
+    | "nonsense"
+    | "blank";
 
   questionType?: EvaluationQuestionType;
 
-  relevanceClassification?: "directly_relevant" | "partially_relevant" | "unrelated";
+  relevanceClassification?:
+    | "directly_relevant"
+    | "partially_relevant"
+    | "unrelated";
 
   scoreLabel?: string;
   requiresReview?: boolean;
@@ -284,7 +291,10 @@ export interface Feedback {
 
   /** Indicates how primary and reviewer evaluations were reconciled. */
   reconciliationMethod?:
-    "not-reviewed" | "selected-review-evaluation" | "retained-primary-evaluation" | string;
+    | "not-reviewed"
+    | "selected-review-evaluation"
+    | "retained-primary-evaluation"
+    | string;
 
   strengths: string[];
   weaknesses: string[];
@@ -293,7 +303,10 @@ export interface Feedback {
   summary: string;
   interviewTip: string;
 
-  source?: "ai" | "fallback" | "local-fallback";
+  source?:
+    | "ai"
+    | "fallback"
+    | "local-fallback";
 
   warning?: string;
   provider?: string;
@@ -332,7 +345,11 @@ export interface SpeechMetrics {
 
   speakingPaceWpm?: number;
 
-  speakingPaceState?: "slow" | "balanced" | "fast" | "not_measurable";
+  speakingPaceState?:
+    | "slow"
+    | "balanced"
+    | "fast"
+    | "not_measurable";
 
   totalWordCount?: number;
   activeSpeechMs?: number;
@@ -348,14 +365,26 @@ export interface SpeechMetrics {
   highVolumeMs?: number;
   clippingEventCount?: number;
 
-  backgroundNoiseState?: "quiet" | "moderate" | "noisy" | "unavailable";
+  backgroundNoiseState?:
+    | "quiet"
+    | "moderate"
+    | "noisy"
+    | "unavailable";
 
   highNoiseMs?: number;
   possibleOverlappingSpeechEventCount?: number;
 
-  answerFlowState?: "continuous" | "some_pauses" | "frequent_pauses" | "not_measurable";
+  answerFlowState?:
+    | "continuous"
+    | "some_pauses"
+    | "frequent_pauses"
+    | "not_measurable";
 
-  volumeConsistency?: "consistent" | "slightly_variable" | "highly_variable" | "not_measurable";
+  volumeConsistency?:
+    | "consistent"
+    | "slightly_variable"
+    | "highly_variable"
+    | "not_measurable";
 
   speechDeliverySummary?: string;
 }
@@ -476,7 +505,10 @@ export interface FinalReport {
   answerCount?: number;
   scoredAnswerCount?: number;
 
-  source?: "ai" | "fallback" | "local-fallback";
+  source?:
+    | "ai"
+    | "fallback"
+    | "local-fallback";
 
   warning?: string;
   provider?: string;
@@ -495,7 +527,10 @@ export interface SessionSummary {
   date: string;
   score: number;
 
-  status?: "in-progress" | "completed" | "cancelled";
+  status?:
+    | "in-progress"
+    | "completed"
+    | "cancelled";
 
   targetCompany?: string;
   targetRole?: string;

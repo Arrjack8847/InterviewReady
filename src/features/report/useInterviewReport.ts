@@ -5,10 +5,7 @@ import {
   getSessionSpeechMetrics,
   getSessionVisualMetrics,
 } from "@/lib/supabaseService";
-import {
-  normalizeExperienceLevel,
-  normalizeInterviewType,
-} from "@/lib/types";
+import { normalizeExperienceLevel, normalizeInterviewType } from "@/lib/types";
 import type { AnswerWithFeedback, FinalReport, InterviewSetup } from "@/lib/types";
 import { buildInterviewReportViewModel } from "./buildReportViewModel";
 import type {

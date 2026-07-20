@@ -26,10 +26,7 @@ import {
 import { retryTransient } from "./resilience";
 import { createPersistedAnswerMetrics } from "./scoring/answerMetrics";
 import type { PersistedAnswerMetrics } from "./scoring/scoringTypes";
-import {
-  initialInterviewMachineState,
-  interviewMachineReducer,
-} from "./state/interviewMachine";
+import { initialInterviewMachineState, interviewMachineReducer } from "./state/interviewMachine";
 import {
   canResume,
   isAnswering as selectIsAnswering,
@@ -65,6 +62,7 @@ import {
   saveInterviewAnswerDraft,
   saveVisualMetrics,
 } from "@/lib/supabaseService";
+import { normalizeInterviewModeValue } from "@/lib/types";
 import type { AnswerWithFeedback, Feedback, FinalReport } from "@/lib/types";
 
 export function InterviewRoom() {
@@ -114,10 +112,7 @@ export function InterviewRoom() {
     persistProgress,
   } = session;
   const submission = useInterviewSubmission();
-  const [machine, dispatch] = useReducer(
-    interviewMachineReducer,
-    initialInterviewMachineState,
-  );
+  const [machine, dispatch] = useReducer(interviewMachineReducer, initialInterviewMachineState);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [videoAttemptComplete, setVideoAttemptComplete] = useState(false);
   const answerRef = useRef(answer);
@@ -171,15 +166,11 @@ export function InterviewRoom() {
     ? history.find((item) => item.question.id === current.id)
     : undefined;
   const isSubmittedQuestion = Boolean(submittedHistoryItem);
-  const isReviewingSubmittedQuestion =
-    isSubmittedQuestion && index < activeQuestionIndex;
-  const feedbackVisible =
-    Boolean(feedback) && (isSubmittedQuestion || isShowingFeedback(machine));
+  const isReviewingSubmittedQuestion = isSubmittedQuestion && index < activeQuestionIndex;
+  const feedbackVisible = Boolean(feedback) && (isSubmittedQuestion || isShowingFeedback(machine));
   const allQuestionsSubmitted =
     questions.length > 0 &&
-    questions.every((question) =>
-      history.some((item) => item.question.id === question.id),
-    );
+    questions.every((question) => history.some((item) => item.question.id === question.id));
 
   useEffect(() => {
     if (!answering || monitoringPaused || modeLabel === "Text") {
@@ -198,9 +189,7 @@ export function InterviewRoom() {
       !isSubmittedQuestion &&
       !videoAttemptComplete,
     securityActive:
-      (answering || monitoringPaused) &&
-      !isSubmittedQuestion &&
-      !videoAttemptComplete,
+      (answering || monitoringPaused) && !isSubmittedQuestion && !videoAttemptComplete,
     pauseEnabled: true,
     onPauseRequested: (warning) => {
       void speech.stopAndFinalize();
@@ -249,10 +238,7 @@ export function InterviewRoom() {
     const warning = interviewMonitor.warning;
     if (!warning || !answering || monitoringPaused) return;
     dispatch({
-      type:
-        warning.severity === "warning"
-          ? "PAUSE_COUNTDOWN_STARTED"
-          : "MONITOR_WARNING",
+      type: warning.severity === "warning" ? "PAUSE_COUNTDOWN_STARTED" : "MONITOR_WARNING",
       warningType: warning.type,
     });
   }, [answering, interviewMonitor.warning, monitoringPaused]);
@@ -274,15 +260,9 @@ export function InterviewRoom() {
   ]);
 
   useEffect(() => {
-    if (
-      questions.length > 0 &&
-      (modeLabel !== "Video" || videoCalibrationComplete)
-    ) {
+    if (questions.length > 0 && (modeLabel !== "Video" || videoCalibrationComplete)) {
       dispatch({
-        type:
-          modeLabel === "Video"
-            ? "CALIBRATION_COMPLETED"
-            : "PREPARATION_COMPLETED",
+        type: modeLabel === "Video" ? "CALIBRATION_COMPLETED" : "PREPARATION_COMPLETED",
       });
     }
   }, [modeLabel, questions.length, videoCalibrationComplete]);
@@ -304,18 +284,10 @@ export function InterviewRoom() {
   }, [answering, modeLabel, pageVisible, pauseSpeechDelivery, stopSpeech]);
 
   useEffect(() => {
-    if (!pageVisible || !answering || monitoringPaused || modeLabel === "Text")
-      return;
+    if (!pageVisible || !answering || monitoringPaused || modeLabel === "Text") return;
     startSpeech();
     void startSpeechDelivery();
-  }, [
-    answering,
-    modeLabel,
-    monitoringPaused,
-    pageVisible,
-    startSpeech,
-    startSpeechDelivery,
-  ]);
+  }, [answering, modeLabel, monitoringPaused, pageVisible, startSpeech, startSpeechDelivery]);
 
   useEffect(() => {
     if (!sessionId || sessionStatus !== "in-progress") return undefined;
@@ -374,11 +346,7 @@ export function InterviewRoom() {
 
     const draft = readInterviewAnswerDraft(sessionId, current.id);
 
-    if (
-      draft?.persistenceStatus !== "failed" ||
-      !draft.feedback ||
-      !draft.metrics
-    ) {
+    if (draft?.persistenceStatus !== "failed" || !draft.feedback || !draft.metrics) {
       return;
     }
 
@@ -411,9 +379,7 @@ export function InterviewRoom() {
           };
 
           return items.some((item) => item.question.id === current.id)
-            ? items.map((item) =>
-                item.question.id === current.id ? restored : item,
-              )
+            ? items.map((item) => (item.question.id === current.id ? restored : item))
             : [...items, restored];
         });
 
@@ -465,11 +431,7 @@ export function InterviewRoom() {
         return;
       }
 
-      if (
-        existing?.persistenceStatus === "failed" &&
-        existing.answer === answer
-      )
-        return;
+      if (existing?.persistenceStatus === "failed" && existing.answer === answer) return;
 
       saveInterviewAnswerLocalDraft(sessionId, current.id, answer, {
         finalizedTranscript: answer,
@@ -478,14 +440,7 @@ export function InterviewRoom() {
       });
     }, 500);
     return () => window.clearTimeout(timeoutId);
-  }, [
-    answer,
-    current,
-    isSubmittedQuestion,
-    machine.phase,
-    modeLabel,
-    sessionId,
-  ]);
+  }, [answer, current, isSubmittedQuestion, machine.phase, modeLabel, sessionId]);
 
   if (questions.length === 0) {
     return <LoadingState fullPage title="Preparing your interview…" />;
@@ -497,14 +452,9 @@ export function InterviewRoom() {
   const progress = allQuestionsSubmitted
     ? 100
     : Math.round(((activeQuestionIndex + 1) / questions.length) * 100);
-  const liveSpeechMetrics = calculateSpeechMetrics(
-    answer,
-    speech.getDurationMs(),
-  );
+  const liveSpeechMetrics = calculateSpeechMetrics(answer, speech.getDurationMs());
   const currentFinalTranscript = answer;
-  const currentTranscriptWordCount = countTranscriptWords(
-    currentFinalTranscript,
-  );
+  const currentTranscriptWordCount = countTranscriptWords(currentFinalTranscript);
   const currentSpeakingPace = calculateActiveSpeechPace(
     currentTranscriptWordCount,
     speechDelivery.snapshot.activeSpeechMs,
@@ -543,9 +493,7 @@ export function InterviewRoom() {
 
     saveHistoryItem(savedAnswer);
     const nextQuestionIndex = Math.min(index + 1, questions.length - 1);
-    setActiveQuestionIndex((currentActiveIndex) =>
-      Math.max(currentActiveIndex, nextQuestionIndex),
-    );
+    setActiveQuestionIndex((currentActiveIndex) => Math.max(currentActiveIndex, nextQuestionIndex));
 
     const activeSessionId = getActiveSessionId();
 
@@ -568,19 +516,14 @@ export function InterviewRoom() {
       return true;
     } catch (error) {
       console.error("Failed to save answer to Supabase:", error);
-      saveInterviewAnswerLocalDraft(
-        activeSessionId,
-        current.id,
-        submittedAnswer,
-        {
-          finalizedTranscript: submittedAnswer,
-          mode: modeLabel.toLowerCase(),
-          submittedAt: new Date().toISOString(),
-          metrics,
-          feedback: fb,
-          persistenceStatus: "failed",
-        },
-      );
+      saveInterviewAnswerLocalDraft(activeSessionId, current.id, submittedAnswer, {
+        finalizedTranscript: submittedAnswer,
+        mode: modeLabel.toLowerCase(),
+        submittedAt: new Date().toISOString(),
+        metrics,
+        feedback: fb,
+        persistenceStatus: "failed",
+      });
       setSaveError(
         "Your answer was analyzed but could not be synced yet. A complete local draft is available for retry.",
       );
@@ -633,17 +576,12 @@ export function InterviewRoom() {
       const submittedAt = new Date().toISOString();
 
       if (activeSessionId) {
-        saveInterviewAnswerLocalDraft(
-          activeSessionId,
-          current.id,
-          submittedAnswer,
-          {
-            finalizedTranscript: modeLabel === "Text" ? "" : submittedAnswer,
-            mode: modeLabel.toLowerCase(),
-            submittedAt,
-            persistenceStatus: "pending",
-          },
-        );
+        saveInterviewAnswerLocalDraft(activeSessionId, current.id, submittedAnswer, {
+          finalizedTranscript: modeLabel === "Text" ? "" : submittedAnswer,
+          mode: modeLabel.toLowerCase(),
+          submittedAt,
+          persistenceStatus: "pending",
+        });
       }
 
       if (user && activeSessionId) {
@@ -680,8 +618,7 @@ export function InterviewRoom() {
       debugScoring("answer feedback received", {
         sessionId: getActiveSessionId(),
         questionId: current.id,
-        answerWordCount: submittedAnswer.trim().split(/\s+/).filter(Boolean)
-          .length,
+        answerWordCount: submittedAnswer.trim().split(/\s+/).filter(Boolean).length,
         scores: {
           overall: evaluatedFeedback.overall,
           clarity: evaluatedFeedback.clarity,
@@ -693,10 +630,8 @@ export function InterviewRoom() {
       });
 
       const answerTranscript = modeLabel === "Text" ? "" : submittedAnswer;
-      const answerDurationMs =
-        modeLabel === "Text" ? 0 : speech.getDurationMs();
-      const audioMetrics =
-        modeLabel === "Text" ? undefined : speechDelivery.getAnswerMetrics();
+      const answerDurationMs = modeLabel === "Text" ? 0 : speech.getDurationMs();
+      const audioMetrics = modeLabel === "Text" ? undefined : speechDelivery.getAnswerMetrics();
       const answerSpeechMetrics =
         modeLabel === "Text"
           ? undefined
@@ -706,9 +641,7 @@ export function InterviewRoom() {
               answerTranscript,
             );
       const answerVisualSummary =
-        modeLabel === "Video"
-          ? interviewMonitor.finishAnswerMetrics(current.id)
-          : undefined;
+        modeLabel === "Video" ? interviewMonitor.finishAnswerMetrics(current.id) : undefined;
       const answerMetrics = createPersistedAnswerMetrics({
         mode: modeLabel,
         feedback: evaluatedFeedback,
@@ -871,9 +804,7 @@ export function InterviewRoom() {
 
       const activeSessionId =
         sessionId ||
-        (typeof window !== "undefined"
-          ? localStorage.getItem("ir.sessionId") || ""
-          : "");
+        (typeof window !== "undefined" ? localStorage.getItem("ir.sessionId") || "" : "");
 
       let report: FinalReport;
       const speechMetrics =
@@ -898,8 +829,7 @@ export function InterviewRoom() {
         modeLabel === "Video"
           ? {
               noFaceDurationMs: interviewMonitor.summary.noFaceDurationMs,
-              multipleFaceDurationMs:
-                interviewMonitor.summary.multipleFaceDurationMs,
+              multipleFaceDurationMs: interviewMonitor.summary.multipleFaceDurationMs,
               analysisErrorCount: interviewMonitor.summary.analysisErrors,
             }
           : undefined;
@@ -930,7 +860,7 @@ export function InterviewRoom() {
           resumeSkills: setup.resumeSkills || [],
           resumeProjects: setup.resumeProjects || [],
           resumeEducation: setup.resumeEducation || "",
-          mode: modeLabel,
+          mode: normalizeInterviewModeValue(modeLabel),
           speechMetrics,
           visualMetrics,
         });
@@ -993,9 +923,7 @@ export function InterviewRoom() {
             ]);
           } catch (metricsError) {
             console.error("Failed to save multimodal metrics:", metricsError);
-            setSaveError(
-              "Final report was created, but some multimodal metrics were not saved.",
-            );
+            setSaveError("Final report was created, but some multimodal metrics were not saved.");
           }
 
           await completeInterviewSession({
@@ -1028,11 +956,7 @@ export function InterviewRoom() {
   };
 
   const handleContinueLater = async () => {
-    if (
-      navigationLockRef.current ||
-      finishLockRef.current ||
-      submissionLockRef.current
-    ) {
+    if (navigationLockRef.current || finishLockRef.current || submissionLockRef.current) {
       return;
     }
 
@@ -1062,16 +986,11 @@ export function InterviewRoom() {
         localStorage.setItem("ir.sessionId", activeSessionId);
 
         if (current && !isSubmittedQuestion && draftAnswer) {
-          saveInterviewAnswerLocalDraft(
-            activeSessionId,
-            current.id,
-            draftAnswer,
-            {
-              finalizedTranscript: modeLabel === "Text" ? "" : draftAnswer,
-              mode: modeLabel.toLowerCase(),
-              persistenceStatus: "editing",
-            },
-          );
+          saveInterviewAnswerLocalDraft(activeSessionId, current.id, draftAnswer, {
+            finalizedTranscript: modeLabel === "Text" ? "" : draftAnswer,
+            mode: modeLabel.toLowerCase(),
+            persistenceStatus: "editing",
+          });
         }
       }
 
@@ -1079,9 +998,7 @@ export function InterviewRoom() {
       await navigate({ to: "/dashboard" });
     } catch (error) {
       console.error("Failed to leave the interview safely:", error);
-      setSaveError(
-        "Could not leave the interview safely. Your local draft is still preserved.",
-      );
+      setSaveError("Could not leave the interview safely. Your local draft is still preserved.");
       navigationLockRef.current = false;
     } finally {
       setExitLoading(false);
@@ -1089,12 +1006,7 @@ export function InterviewRoom() {
   };
 
   const handleCancelSession = async () => {
-    if (
-      navigationLockRef.current ||
-      finishLockRef.current ||
-      submissionLockRef.current
-    )
-      return;
+    if (navigationLockRef.current || finishLockRef.current || submissionLockRef.current) return;
     navigationLockRef.current = true;
     const activeSessionId = getActiveSessionId();
 
@@ -1133,9 +1045,7 @@ export function InterviewRoom() {
       isSpeechFinalizing ||
       loading ||
       (modeLabel === "Video" &&
-        (videoAttemptComplete ||
-          !cameraStream ||
-          interviewMonitor.faceState !== "one_face"))
+        (videoAttemptComplete || !cameraStream || interviewMonitor.faceState !== "one_face"))
     ) {
       return;
     }
@@ -1293,11 +1203,7 @@ export function InterviewRoom() {
                   isListening={isListening}
                   isFinalizing={isSpeechFinalizing}
                   hasTranscript={Boolean(answer.trim())}
-                  disabled={
-                    loading ||
-                    isSubmittedQuestion ||
-                    index !== activeQuestionIndex
-                  }
+                  disabled={loading || isSubmittedQuestion || index !== activeQuestionIndex}
                   error={voiceError}
                   delivery={speechDelivery.snapshot}
                   deliveryError={speechDelivery.error}
@@ -1323,23 +1229,14 @@ export function InterviewRoom() {
                   isFinalizing={isSpeechFinalizing}
                   attemptComplete={videoAttemptComplete}
                   hasTranscript={Boolean(answer.trim())}
-                  disabled={
-                    loading ||
-                    isSubmittedQuestion ||
-                    index !== activeQuestionIndex
-                  }
+                  disabled={loading || isSubmittedQuestion || index !== activeQuestionIndex}
                   answerDurationMs={speech.getDurationMs()}
                   validPresenceRatio={interviewMonitor.summary.oneFaceRatio}
-                  monitoringDurationMs={
-                    interviewMonitor.summary.totalMonitoringMs
-                  }
+                  monitoringDurationMs={interviewMonitor.summary.totalMonitoringMs}
                   warning={interviewMonitor.warning || undefined}
                   monitorError={camera.error || interviewMonitor.error}
                   engagementActive={
-                    answering &&
-                    !monitoringPaused &&
-                    pageVisible &&
-                    !videoAttemptComplete
+                    answering && !monitoringPaused && pageVisible && !videoAttemptComplete
                   }
                   engagementGuidance={interviewMonitor.engagementGuidance}
                   debugHeadPose={interviewMonitor.smoothedHeadPose}
@@ -1377,27 +1274,20 @@ export function InterviewRoom() {
             />
 
             <InterviewActions
-  index={index}
-  submitted={isSubmittedQuestion}
-  reviewing={isReviewingSubmittedQuestion}
-  canGoNext={canGoNext}
-  canFinish={canFinish}
-  loading={loading}
-  finalizing={loading || isListening || isSpeechFinalizing}
-  hasAnswer={
-    Boolean(answer.trim()) &&
-    !isListening &&
-    !isSpeechFinalizing
-  }
-  answerReady={
-    modeLabel !== "Video" ||
-    videoAttemptComplete
-  }
-  onPrevious={handlePrevious}
-  onSubmit={handleSubmit}
-  onNext={handleNext}
-  onFinish={handleFinish}
-/>
+              index={index}
+              submitted={isSubmittedQuestion}
+              reviewing={isReviewingSubmittedQuestion}
+              canGoNext={canGoNext}
+              canFinish={canFinish}
+              loading={loading}
+              finalizing={loading || isListening || isSpeechFinalizing}
+              hasAnswer={Boolean(answer.trim()) && !isListening && !isSpeechFinalizing}
+              answerReady={modeLabel !== "Video" || videoAttemptComplete}
+              onPrevious={handlePrevious}
+              onSubmit={handleSubmit}
+              onNext={handleNext}
+              onFinish={handleFinish}
+            />
           </section>
 
           {feedbackVisible && feedback && (

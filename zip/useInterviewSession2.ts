@@ -6,7 +6,11 @@ import {
   updateInterviewSessionProgress,
   updateInterviewSessionQuestions,
 } from "@/lib/supabaseService";
-import type { AnswerWithFeedback, Feedback, Question } from "@/lib/types";
+import type {
+  AnswerWithFeedback,
+  Feedback,
+  Question,
+} from "@/lib/types";
 import { DEFAULT_SETUP } from "../constants";
 import type { ExtendedInterviewSetup } from "../types";
 import {
@@ -14,7 +18,10 @@ import {
   mapSavedAnswerToHistoryItem,
   normalizeStoredQuestions,
 } from "../utils/interviewMappers";
-import { buildSetupFromSession, readStoredSetup } from "../utils/interviewSetup";
+import {
+  buildSetupFromSession,
+  readStoredSetup,
+} from "../utils/interviewSetup";
 
 interface UseInterviewSessionOptions {
   userId?: string;
@@ -24,7 +31,9 @@ interface UseInterviewSessionOptions {
 
 type QuestionCategory = NonNullable<Question["category"]>;
 
-const QUESTION_CATEGORY_ALIASES: Readonly<Record<string, QuestionCategory>> = {
+const QUESTION_CATEGORY_ALIASES: Readonly<
+  Record<string, QuestionCategory>
+> = {
   mixed: "Mixed Interview",
   "mixed interview": "Mixed Interview",
 
@@ -52,7 +61,10 @@ const QUESTION_CATEGORY_ALIASES: Readonly<Record<string, QuestionCategory>> = {
   general: "general",
 };
 
-function normalizeQuestionCategory(value: unknown, fallback: QuestionCategory): QuestionCategory {
+function normalizeQuestionCategory(
+  value: unknown,
+  fallback: QuestionCategory,
+): QuestionCategory {
   if (typeof value !== "string") {
     return fallback;
   }
@@ -77,13 +89,21 @@ function questionIdsMatch(
   return String(first) === String(second);
 }
 
-function addQuestionContext(question: Question, setup: ExtendedInterviewSetup): Question {
+function addQuestionContext(
+  question: Question,
+  setup: ExtendedInterviewSetup,
+): Question {
   return {
     ...question,
 
-    category: normalizeQuestionCategory(question.category, setup.type),
+    category: normalizeQuestionCategory(
+      question.category,
+      setup.type,
+    ),
 
-    difficulty: question.difficulty || setup.difficulty,
+    difficulty:
+      question.difficulty ||
+      setup.difficulty,
 
     expectedFocus:
       question.expectedFocus?.trim() ||
@@ -91,8 +111,13 @@ function addQuestionContext(question: Question, setup: ExtendedInterviewSetup): 
   };
 }
 
-function buildLocalFallbackQuestions(setup: ExtendedInterviewSetup): Question[] {
-  const role = setup.targetRole?.trim() || setup.role.trim() || "selected";
+function buildLocalFallbackQuestions(
+  setup: ExtendedInterviewSetup,
+): Question[] {
+  const role =
+    setup.targetRole?.trim() ||
+    setup.role.trim() ||
+    "selected";
 
   return [
     {
@@ -113,7 +138,8 @@ function buildLocalFallbackQuestions(setup: ExtendedInterviewSetup): Question[] 
     },
     {
       id: "fallback-3",
-      text: "Describe one project or experience that shows your problem-solving ability.",
+      text:
+        "Describe one project or experience that shows your problem-solving ability.",
       category: setup.type,
       difficulty: setup.difficulty,
       expectedFocus:
@@ -122,15 +148,26 @@ function buildLocalFallbackQuestions(setup: ExtendedInterviewSetup): Question[] 
   ];
 }
 
-export function useInterviewSession({ userId, onMissing, onClosed }: UseInterviewSessionOptions) {
+export function useInterviewSession({
+  userId,
+  onMissing,
+  onClosed,
+}: UseInterviewSessionOptions) {
   const [sessionId, setSessionId] = useState("");
-  const [status, setStatus] = useState<"in-progress" | "completed" | "cancelled">("in-progress");
-  const [setup, setSetup] = useState<ExtendedInterviewSetup>(DEFAULT_SETUP);
+  const [status, setStatus] = useState<
+    "in-progress" | "completed" | "cancelled"
+  >("in-progress");
+  const [setup, setSetup] =
+    useState<ExtendedInterviewSetup>(DEFAULT_SETUP);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [history, setHistory] = useState<AnswerWithFeedback[]>([]);
+  const [feedback, setFeedback] = useState<Feedback | null>(
+    null,
+  );
+  const [history, setHistory] = useState<
+    AnswerWithFeedback[]
+  >([]);
   const [questionError, setQuestionError] = useState("");
   const [feedbackError, setFeedbackError] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -143,7 +180,8 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
     let active = true;
 
     const initialize = async () => {
-      const activeSessionId = localStorage.getItem("ir.sessionId") || "";
+      const activeSessionId =
+        localStorage.getItem("ir.sessionId") || "";
 
       if (!activeSessionId) {
         onMissing();
@@ -151,7 +189,10 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
       }
 
       try {
-        const savedSession = await getInterviewSession(activeSessionId, userId);
+        const savedSession = await getInterviewSession(
+          activeSessionId,
+          userId,
+        );
 
         if (!active) {
           return;
@@ -164,23 +205,35 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
           return;
         }
 
-        if (savedSession.status === "completed" || savedSession.status === "cancelled") {
+        if (
+          savedSession.status === "completed" ||
+          savedSession.status === "cancelled"
+        ) {
           localStorage.removeItem("ir.sessionId");
           localStorage.removeItem("ir.activeAttemptId");
           onClosed();
           return;
         }
 
-        const selectedSetup = buildSetupFromSession(savedSession, readStoredSetup());
+        const selectedSetup = buildSetupFromSession(
+          savedSession,
+          readStoredSetup(),
+        );
 
         setSessionId(activeSessionId);
         setStatus("in-progress");
         setSetup(selectedSetup);
 
-        localStorage.setItem("ir.setup", JSON.stringify(selectedSetup));
+        localStorage.setItem(
+          "ir.setup",
+          JSON.stringify(selectedSetup),
+        );
 
         if (savedSession.attemptId) {
-          localStorage.setItem("ir.activeAttemptId", savedSession.attemptId);
+          localStorage.setItem(
+            "ir.activeAttemptId",
+            savedSession.attemptId,
+          );
         }
 
         const savedAnswers = await getSessionAnswers({
@@ -192,14 +245,20 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
           return;
         }
 
-        const completedAnswers = savedAnswers.filter((item) => item.evaluationStatus !== "pending");
+        const completedAnswers = savedAnswers.filter(
+          (item) => item.evaluationStatus !== "pending",
+        );
 
-        const restoredHistory = completedAnswers.map(mapSavedAnswerToHistoryItem);
+        const restoredHistory = completedAnswers.map(
+          mapSavedAnswerToHistoryItem,
+        );
 
         setHistory(restoredHistory);
 
-        let interviewQuestions = normalizeStoredQuestions(savedSession.generatedQuestions).map(
-          (question) => addQuestionContext(question, selectedSetup),
+        let interviewQuestions = normalizeStoredQuestions(
+          savedSession.generatedQuestions,
+        ).map((question) =>
+          addQuestionContext(question, selectedSetup),
         );
 
         if (interviewQuestions.length === 0) {
@@ -210,34 +269,55 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
               type: selectedSetup.type,
               difficulty: selectedSetup.difficulty,
               questionCount: selectedSetup.questionCount,
-              targetCompany: selectedSetup.targetCompany || "",
-              jobDescription: selectedSetup.jobDescription || "",
-              resumeSummary: selectedSetup.resumeSummary || "",
-              resumeSkills: selectedSetup.resumeSkills || [],
-              resumeProjects: selectedSetup.resumeProjects || [],
-              resumeEducation: selectedSetup.resumeEducation || "",
-              companyContext: selectedSetup.companyContext,
+              targetCompany:
+                selectedSetup.targetCompany || "",
+              jobDescription:
+                selectedSetup.jobDescription || "",
+              resumeSummary:
+                selectedSetup.resumeSummary || "",
+              resumeSkills:
+                selectedSetup.resumeSkills || [],
+              resumeProjects:
+                selectedSetup.resumeProjects || [],
+              resumeEducation:
+                selectedSetup.resumeEducation || "",
+              companyContext:
+                selectedSetup.companyContext,
             });
 
-            interviewQuestions = result.questions.map((question, questionIndex): Question => ({
-              id: question.id || `q-${questionIndex + 1}`,
+            interviewQuestions = result.questions.map(
+              (question, questionIndex): Question => ({
+                id:
+                  question.id ||
+                  `q-${questionIndex + 1}`,
 
-              text: question.text,
+                text: question.text,
 
-              category: normalizeQuestionCategory(question.category, selectedSetup.type),
+                category: normalizeQuestionCategory(
+                  question.category,
+                  selectedSetup.type,
+                ),
 
-              difficulty: selectedSetup.difficulty,
+                difficulty:
+                  selectedSetup.difficulty,
 
-              expectedFocus:
-                question.expectedFocus?.trim() ||
-                "Give a clear, relevant answer with evidence appropriate to the selected experience level.",
-            }));
+                expectedFocus:
+                  question.expectedFocus?.trim() ||
+                  "Give a clear, relevant answer with evidence appropriate to the selected experience level.",
+              }),
+            );
           } catch (error) {
-            console.error("AI question generation failed:", error);
+            console.error(
+              "AI question generation failed:",
+              error,
+            );
 
-            setQuestionError("AI question generation failed, so fallback questions were loaded.");
+            setQuestionError(
+              "AI question generation failed, so fallback questions were loaded.",
+            );
 
-            interviewQuestions = buildLocalFallbackQuestions(selectedSetup);
+            interviewQuestions =
+              buildLocalFallbackQuestions(selectedSetup);
           }
 
           try {
@@ -247,9 +327,14 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
               questions: interviewQuestions,
             });
           } catch (error) {
-            console.error("Failed to save generated questions:", error);
+            console.error(
+              "Failed to save generated questions:",
+              error,
+            );
 
-            setSaveError("Interview questions loaded, but they were not saved to Supabase.");
+            setSaveError(
+              "Interview questions loaded, but they were not saved to Supabase.",
+            );
           }
         }
 
@@ -263,16 +348,24 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
           savedSession.currentQuestionIndex,
         );
 
-        const activeQuestion = interviewQuestions[resumeIndex];
+        const activeQuestion =
+          interviewQuestions[resumeIndex];
 
-        const restoredAnswer = restoredHistory.find((item) =>
-          questionIdsMatch(item.question.id, activeQuestion?.id),
+        const restoredAnswer = restoredHistory.find(
+          (item) =>
+            questionIdsMatch(
+              item.question.id,
+              activeQuestion?.id,
+            ),
         );
 
         const pendingAnswer = savedAnswers.find(
           (item) =>
             item.evaluationStatus === "pending" &&
-            questionIdsMatch(item.questionId, activeQuestion?.id),
+            questionIdsMatch(
+              item.questionId,
+              activeQuestion?.id,
+            ),
         );
 
         setQuestions(interviewQuestions);
@@ -284,7 +377,11 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
           return;
         }
 
-        if (restoredAnswer && completedAnswers.length >= interviewQuestions.length) {
+        if (
+          restoredAnswer &&
+          completedAnswers.length >=
+            interviewQuestions.length
+        ) {
           setAnswer(restoredAnswer.answer);
           setFeedback(restoredAnswer.feedback);
         } else {
@@ -296,9 +393,14 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
           return;
         }
 
-        console.error("Failed to load interview session:", error);
+        console.error(
+          "Failed to load interview session:",
+          error,
+        );
 
-        setQuestionError("Could not load your saved interview session. Please try again.");
+        setQuestionError(
+          "Could not load your saved interview session. Please try again.",
+        );
       }
     };
 
@@ -310,7 +412,10 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
   }, [onClosed, onMissing, userId]);
 
   const getActiveSessionId = useCallback(
-    () => sessionId || localStorage.getItem("ir.sessionId") || "",
+    () =>
+      sessionId ||
+      localStorage.getItem("ir.sessionId") ||
+      "",
     [sessionId],
   );
 
@@ -329,9 +434,14 @@ export function useInterviewSession({ userId, onMissing, onClosed }: UseIntervie
           currentQuestionIndex,
         });
       } catch (error) {
-        console.error("Failed to save interview progress:", error);
+        console.error(
+          "Failed to save interview progress:",
+          error,
+        );
 
-        setSaveError("Your progress could not be saved to Supabase.");
+        setSaveError(
+          "Your progress could not be saved to Supabase.",
+        );
       }
     },
     [getActiveSessionId, userId],

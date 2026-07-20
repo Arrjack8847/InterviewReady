@@ -1,3 +1,4 @@
+import { getQuestionIdentityKey } from "../../../lib/types";
 import type { AnswerWithFeedback, Question } from "@/lib/types";
 import type { SavedInterviewAnswer } from "../types";
 
@@ -15,7 +16,7 @@ export function normalizeStoredQuestions(value: unknown): Question[] {
         text,
       };
     })
-    .filter((question): question is Question => Boolean(question));
+    .filter((question): question is NonNullable<typeof question> => question !== null);
 }
 
 export function mapSavedAnswerToHistoryItem(answer: SavedInterviewAnswer): AnswerWithFeedback {
@@ -46,8 +47,12 @@ export function getResumeIndex(
   currentQuestionIndex?: number | null,
 ) {
   if (questions.length === 0) return 0;
-  const answeredIds = new Set(savedAnswers.map((answer) => answer.questionId));
-  const firstUnanswered = questions.findIndex((question) => !answeredIds.has(question.id));
+  const answeredIds = new Set(
+    savedAnswers.map((answer) => getQuestionIdentityKey(answer.questionId)),
+  );
+  const firstUnanswered = questions.findIndex(
+    (question) => !answeredIds.has(getQuestionIdentityKey(question.id)),
+  );
   if (firstUnanswered >= 0) return firstUnanswered;
   const storedIndex = Number(currentQuestionIndex || 0);
   return Number.isFinite(storedIndex)
