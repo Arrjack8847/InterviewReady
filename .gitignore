@@ -36,6 +36,7 @@ lerna-debug.log*
 
 # Local archives and overrides
 *.zip
+zip/
 *.local
 
 # Keep server environment files local while tracking its example
