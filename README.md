@@ -4,7 +4,7 @@ An AI-assisted interview preparation web application designed to help students a
 
 ## Live Demo
 
-[View the live project](https://interview2-alpha.vercel.app/)
+[View the live project](https://interview-ready-gold.vercel.app/)
 
 ## Overview
 
